@@ -195,7 +195,8 @@ function nql:getQUpdate(args)
     -- to avoid unnecessary calls (we only need 2).
 
     -- delta = r + (1-terminal) * gamma * max_a Q(s2, a) - Q(s, a)
-    term = term:clone():float():mul(-1):add(1)
+    term = term:clone():float():mul(-1):add(1):resize(self.minibatch_size,1)
+    term = torch.repeatTensor(term,1,self.num_heads)
 
     local target_q_net
     if self.target_q then
@@ -204,13 +205,23 @@ function nql:getQUpdate(args)
         target_q_net = self.network
     end
 
+    -- Really need to find a better way to do the rest of this function
+
     -- Compute max_a Q(s_2, a).
-    q2_max = target_q_net:forward(s2):float():max(2)
+    local q2_total = target_q_net:forward(s2):float():squeeze()
+    q2_max = torch.FloatTensor(self.minibatch_size,self.num_heads)
+    for i=1,self.num_heads do
+    	local q2_per_head = q2_total:narrow(2,(i-1)*self.n_actions+1,self.n_actions)
+    	q2_max:narrow(2,i,1):set(q2_per_head:max(2))
+    end
+
+    -- q2_max = target_q_net:forward(s2):float():max(2)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)
 
-    delta = r:clone():float()
+    delta = r:clone():float():resize(self.minibatch_size,1)
+    delta = torch.repeatTensor(delta,1,self.num_heads)
 
     if self.rescale_r then
         delta:div(self.r_max)
@@ -218,10 +229,12 @@ function nql:getQUpdate(args)
     delta:add(q2)
 
     -- q = Q(s,a)
-    local q_all = self.network:forward(s):float()
-    q = torch.FloatTensor(q_all:size(1))
-    for i=1,q_all:size(1) do
-        q[i] = q_all[i][a[i]]
+    local q_all = self.network:forward(s):float():squeeze()
+    q = torch.FloatTensor(q_all:size(1),self.num_heads)
+    for j = 1,self.num_heads do
+        for i = 1,q_all:size(1) do
+            q[i][j] = q_all[i][(j-1)*self.n_actions+a[i]]
+        end
     end
     delta:add(-1, q)
 
@@ -230,12 +243,12 @@ function nql:getQUpdate(args)
         delta[delta:le(-self.clip_delta)] = -self.clip_delta
     end
 
-    local targets = torch.zeros(self.minibatch_size, self.n_actions):float()
-    for i=1,math.min(self.minibatch_size,a:size(1)) do
-        targets[i][a[i]] = delta[i]
+    local targets = torch.zeros(self.minibatch_size, self.n_actions*self.num_heads):float()
+    for j = 1,self.num_heads do
+        for i=1,math.min(self.minibatch_size,a:size(1)) do
+            targets[i][(j-1)*self.n_actions+a[i]] = delta[i][j]
+        end
     end
-
-    targets = torch.repeatTensor(targets,1,self.num_heads)
 
     if self.gpu >= 0 then targets = targets:cuda() end
 

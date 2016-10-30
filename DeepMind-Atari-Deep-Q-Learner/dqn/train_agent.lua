@@ -93,6 +93,8 @@ while step < opt.steps do
         else
             screen, reward, terminal = game_env:newGame()
         end
+        agent.active_head = torch.random(1,agent.num_heads)
+        print(agent.active_head)
     end
 
     -- display screen
