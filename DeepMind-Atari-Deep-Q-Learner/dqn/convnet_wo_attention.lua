@@ -64,12 +64,11 @@ function create_network(args)
     -- net:add(nn.Bootstrap(nn.Linear(nel,args.n_actions),10,0.08))
 
     -- THIS PART FOR SOFT ATTENTION
-    head_att = nn.ConcatTable()
-    heads = nn.ConcatTable()
-    for i=1,10 do
+    heads = nn.Concat(2)
+    for i=1,args.num_heads do
         mlp = nn.Sequential()
         mlp:add(nn.Linear(args.n_hid[1],args.n_actions))
-        mlp:add(args.nl())
+        -- mlp:add(args.nl())
         -- for j=1,(#args.n_hid-1) do
         --     mlp:add(nn.Linear(args.n_hid[i], args.n_hid[i+1]))
         --     mlp:add(args.nl())
@@ -77,13 +76,7 @@ function create_network(args)
         -- mlp:add(nn.Linear(last_layer_size, args.n_actions))
         heads:add(mlp)
     end
-    att = nn.Sequential()
-    att:add(nn.Linear(args.n_hid[1],64))
-    att:add(nn.Linear(64,10))
-    att:add(nn.SoftMax())
-    head_att:add(heads)
-    head_att:add(att)
-    net:add(head_att)
+    net:add(heads)
 
     if args.gpu >=0 then
         net:cuda()

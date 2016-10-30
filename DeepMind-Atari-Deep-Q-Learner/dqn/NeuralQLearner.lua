@@ -3,8 +3,7 @@ Copyright (c) 2014 Google Inc.
 
 See LICENSE file for full terms of limited license.
 ]]
-require 'nn'
-require 'Bootstrap'
+
 if not dqn then
     require 'initenv'
 end
@@ -18,6 +17,7 @@ function nql:__init(args)
     self.n_actions  = #self.actions
     self.verbose    = args.verbose
     self.best       = args.best
+    self.num_heads	= args.num_heads
 
     --- epsilon annealing
     self.ep_start   = args.ep or 1
@@ -64,6 +64,9 @@ function nql:__init(args)
     self.transition_params = args.transition_params or {}
 
     self.network    = args.network or self:createNetwork()
+
+    --Actve Head
+    self.active_head	= torch.random(1,self.num_heads)
 
     -- check whether there is a network file
     local network_function
@@ -202,27 +205,8 @@ function nql:getQUpdate(args)
     end
 
     -- Compute max_a Q(s_2, a).
-    q2_max_attend = target_q_net:forward(s2:cuda())
-    --q2_max_attend:float() -- = nn.utils.recursiveType(q2_max_attend,'torch.FloatTensor')
-    q2_max = torch.Tensor(#q2_max_attend[1][1]):cuda()
-    q2_max_a = torch.Tensor(4):fill(0):cuda()
-    for i=1,32 do
-        q2_max_a:fill(0)
-        for j=1,10 do
-            --print(q2_max_attend[2][i][j],q2_max_attend[1][j][i])
-            q2_max_attend[1][j][i]:mul(q2_max_attend[2][i][j])
-            --print(q2_max_attend[1][j][i])
-            q2_max_a:add(q2_max_attend[1][j][i])
-            --print('written',i,j)
-        end
-        --print(q2_max_attend[2][i])
-        --print(q2_max_attend[1][i])
-        --q2_max_attend[1][1][i]:cmul(q2_max_attend[1][1][i])
-        q2_max[i] = q2_max_a
-    end
-    q2_max = q2_max:float():max(2)
-    --print(q2_max)
-    --print(term)
+    q2_max = target_q_net:forward(s2):float():max(2)
+
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)
 
@@ -233,24 +217,8 @@ function nql:getQUpdate(args)
     end
     delta:add(q2)
 
-    --print(self.network)
     -- q = Q(s,a)
-    q_all_attend = self.network:forward(s:cuda())
-    --q_all_attend:float() -- = nn.utils.recursiveType(q_all_attend,'torch.FloatTensor')
-    q_all = torch.Tensor(#q_all_attend[1][1]):cuda()
-    q_a = torch.Tensor(4):fill(0):cuda()
-    for i=1,32 do
-        q_a:fill(0)
-        for j=1,10 do
-            q_all_attend[1][j][i]:mul(q_all_attend[2][i][j])
-            q_a:add(q_all_attend[1][j][i])
-        end
-        --print(q_all_attend[2][i])
-        --print(q_all_attend[1][i])
-        --q_all_attend[1][i]:mul(q_all_attend[2][i])
-        q_all[i] = q_a
-    end
-    q_all = q_all:float()
+    local q_all = self.network:forward(s):float()
     q = torch.FloatTensor(q_all:size(1))
     for i=1,q_all:size(1) do
         q[i] = q_all[i][a[i]]
@@ -266,6 +234,8 @@ function nql:getQUpdate(args)
     for i=1,math.min(self.minibatch_size,a:size(1)) do
         targets[i][a[i]] = delta[i]
     end
+
+    targets = torch.repeatTensor(targets,1,self.num_heads)
 
     if self.gpu >= 0 then targets = targets:cuda() end
 
@@ -287,9 +257,7 @@ function nql:qLearnMinibatch()
     self.dw:zero()
 
     -- get new gradient
-    --print(targets)
-    --print(s)
-    self.network:backward(s:cuda(), targets:cuda())
+    self.network:backward(s, targets)
 
     -- add weight cost to gradient
     self.dw:add(-self.wc, self.w)
@@ -370,7 +338,8 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Select action
     local actionIndex = 1
     if not terminal then
-        actionIndex = self:eGreedy(curState, testing_ep)
+        -- actionIndex = self:eGreedy(curState, testing_ep)
+        actionIndex = self:greedy(curState)
     end
 
     self.transitions:add_recent_action(actionIndex)
@@ -427,37 +396,8 @@ function nql:greedy(state)
         state = state:cuda()
     end
 
-    q_attend = self.network:forward(state:cuda())
-    --q_attend:float() -- = nn.utils.recursiveType(q_attend,'torch.FloatTensor')
-    --q_attend = q_attend:squeeze()
-    --q_all_attend = self.network:forward(s:cuda())
-    --    --q_all_attend:float() -- = nn.utils.recursiveType(q_all_attend,'torch.FloatTensor')
-    --        q_all = torch.Tensor(#q_all_attend[1][1]):cuda()
-    --            q_a = torch.Tensor(#q_all_attend[1][1]):fill(0):cuda()
-    --                for i=1,32 do
-    --                        for j=1,10 do
-    --                                    q_all[1][j][i]:mul(q_all[2][j][i])
-    --                                                q_a:add(q_all[1][j][i])
-    --                                                        end
-    --                                                                --print(q_all_attend[2][i])
-    --                                                                        --print(q_all_attend[1][i])
-    --                                                                                --q_all_attend[1][i]:mul(q_all_attend[2][i])
-    --                                                                                        q_all:add(q_a)
-    --                                                                                            end
-    --                                                                                                q_all:float()
-    q = torch.Tensor(#q_attend[1][1]):cuda()
-    q_l = torch.Tensor(4):cuda():fill(0)
-    for i=1,32 do
-        for j=1,10 do
-            q_attend[1][j][i]:mul(q_all[2][i][j])
-            q_l:add(q_all[1][j][i])
-        end
-        --print(q_attend[2][i])
-        --print(q_attend[1][i])
-        --q_attend[1][i]:mul(q_attend[2][i])
-        q[i] = q_l
-    end
-    q = q:float():squeeze()
+    local q = self.network:forward(state):float():squeeze()
+    q = q:narrow(1,(self.active_head-1)*self.n_actions+1,self.n_actions)
     local maxq = q[1]
     local besta = {1}
 

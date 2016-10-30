@@ -42,6 +42,7 @@ cmd:option('-eval_steps', 10^5, 'number of evaluation steps')
 cmd:option('-verbose', 2,
            'the higher the level, the more information is printed to screen')
 cmd:option('-threads', 1, 'number of BLAS threads')
+cmd:option('-heads', 1, 'number of Bootstrap heads')
 cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:text()
@@ -136,6 +137,7 @@ while step < opt.steps do
                 episode_reward = 0
                 nepisodes = nepisodes + 1
                 screen, reward, terminal = game_env:nextRandomGame()
+                agent.active_head = torch.random(1,agent.num_heads)
             end
         end
 
