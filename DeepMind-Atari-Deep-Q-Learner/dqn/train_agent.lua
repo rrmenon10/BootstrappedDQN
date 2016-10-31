@@ -75,15 +75,16 @@ local total_reward
 local nrewards
 local nepisodes
 local episode_reward
-
+agent.active_head = torch.random(1,agent.num_heads)
+--print(agent.active_head)
 local screen, reward, terminal = game_env:getState()
 
 print("Iteration ..", step)
 local win = nil
 while step < opt.steps do
     step = step + 1
-    local action_index = agent:perceive(reward, screen, terminal)
-
+    local action_index = agent:perceive(reward, screen, terminal, false, (step<learn_start))
+    --print(terminal,reward,action_index)
     -- game over? get next game!
     if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
@@ -94,7 +95,7 @@ while step < opt.steps do
             screen, reward, terminal = game_env:newGame()
         end
         agent.active_head = torch.random(1,agent.num_heads)
-        print(agent.active_head)
+        --print(agent.active_head)
     end
 
     -- display screen
@@ -121,7 +122,7 @@ while step < opt.steps do
 
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
-            local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
+            local action_index = agent:perceive(reward, screen, terminal, true)
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])

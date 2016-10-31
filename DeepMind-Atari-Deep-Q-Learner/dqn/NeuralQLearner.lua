@@ -351,8 +351,12 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Select action
     local actionIndex = 1
     if not terminal then
-        -- actionIndex = self:eGreedy(curState, testing_ep)
-        actionIndex = self:greedy(curState)
+        if not testing_ep then
+            -- actionIndex = self:eGreedy(curState, testing_ep)
+            actionIndex = self:greedy(curState)
+        else
+            actionIndex = self:eGreedy(curState)
+        end
     end
 
     self.transitions:add_recent_action(actionIndex)
