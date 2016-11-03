@@ -47,7 +47,7 @@ function nql:__init(args)
     self.rescale_r      = args.rescale_r
     self.max_reward     = args.max_reward
     self.min_reward     = args.min_reward
-    self.clip_delta     = args.clip_delta
+    self.clip_delta     = 1--args.clip_delta
     self.target_q       = args.target_q
     self.bestq          = 0
 
@@ -190,14 +190,12 @@ function nql:getQUpdate(args)
     r = args.r
     s2 = args.s2
     term = args.term
-
     -- The order of calls to forward is a bit odd in order
     -- to avoid unnecessary calls (we only need 2).
-
     -- delta = r + (1-terminal) * gamma * max_a Q(s2, a) - Q(s, a)
     term = term:clone():float():mul(-1):add(1):resize(self.minibatch_size,1)
     term = torch.repeatTensor(term,1,self.num_heads)
-
+    
     local target_q_net
     if self.target_q then
         target_q_net = self.target_network
@@ -208,21 +206,20 @@ function nql:getQUpdate(args)
     -- Really need to find a better way to do the rest of this function
 
     -- Compute max_a Q(s_2, a).
-    local q2_total = target_q_net:forward(s2):float():squeeze()
-    q2_max = torch.FloatTensor(self.minibatch_size,self.num_heads)
+    local q2_total = self.target_network:forward(s2):float():squeeze()
+    q2_max = torch.zeros(self.minibatch_size,self.num_heads)
     for i=1,self.num_heads do
     	local q2_per_head = q2_total:narrow(2,(i-1)*self.n_actions+1,self.n_actions)
-    	q2_max:narrow(2,i,1):set(q2_per_head:max(2))
+    	--print(torch.max(q2_per_head,2))
+      local kf
+      q2_per_head, kf = q2_per_head:max(2)
+      q2_max:narrow(2,i,1):copy(q2_per_head)
     end
-
     -- q2_max = target_q_net:forward(s2):float():max(2)
-
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)
-
     delta = r:clone():float():resize(self.minibatch_size,1)
     delta = torch.repeatTensor(delta,1,self.num_heads)
-
     if self.rescale_r then
         delta:div(self.r_max)
     end
@@ -237,12 +234,11 @@ function nql:getQUpdate(args)
         end
     end
     delta:add(-1, q)
-
     if self.clip_delta then
         delta[delta:ge(self.clip_delta)] = self.clip_delta
+        --print(self.clip_delta)
         delta[delta:le(-self.clip_delta)] = -self.clip_delta
     end
-
     local targets = torch.zeros(self.minibatch_size, self.n_actions*self.num_heads):float()
     for j = 1,self.num_heads do
         for i=1,math.min(self.minibatch_size,a:size(1)) do
@@ -271,7 +267,6 @@ function nql:qLearnMinibatch()
 
     -- get new gradient
     self.network:backward(s, targets)
-
     -- add weight cost to gradient
     self.dw:add(-self.wc, self.w)
 
@@ -360,8 +355,11 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     end
 
     self.transitions:add_recent_action(actionIndex)
-
+    if self.numSteps == self.learn_start then
+      self.target_network = self.network
+    end
     --Do some Q-learning updates
+    print(self.numSteps)
     if self.numSteps > self.learn_start and not testing and
         self.numSteps % self.update_freq == 0 then
         for i = 1, self.n_replay do

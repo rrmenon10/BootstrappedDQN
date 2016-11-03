@@ -6,7 +6,8 @@ See LICENSE file for full terms of limited license.
 
 require "initenv"
 require "nn"
--- require "Bootstrap"
+--require "GradScale"
+require "Bootstrap"
 
 function create_network(args)
 
@@ -65,6 +66,7 @@ function create_network(args)
 
     -- THIS PART FOR SOFT ATTENTION
     heads = nn.Concat(2)
+    --heads:add(nn.GradScale(0.1))
     for i=1,args.num_heads do
         mlp = nn.Sequential()
         mlp:add(nn.Linear(args.n_hid[1],args.n_actions))
