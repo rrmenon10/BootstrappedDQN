@@ -26,6 +26,7 @@ cmd:option('-random_starts', 0, 'play action 0 between 1 and random_starts ' ..
 
 cmd:option('-name', '', 'filename used for saving network and training history')
 cmd:option('-network', '', 'reload pretrained network')
+cmd:option('-heads_net', '', 'reload heads network')
 cmd:option('-agent', '', 'name of agent file to use')
 cmd:option('-agent_params', '', 'string of agent parameters')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
@@ -48,7 +49,6 @@ cmd:option('-gpu', -1, 'gpu flag')
 cmd:text()
 
 local opt = cmd:parse(arg)
-
 --- General setup.
 local game_env, game_actions, agent, opt = setup(opt)
 

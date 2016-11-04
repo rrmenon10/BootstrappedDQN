@@ -47,7 +47,7 @@ function nql:__init(args)
     self.rescale_r      = args.rescale_r
     self.max_reward     = args.max_reward
     self.min_reward     = args.min_reward
-    self.clip_delta     = 1--args.clip_delta
+    self.clip_delta     = args.clip_delta
     self.target_q       = args.target_q
     self.bestq          = 0
 
@@ -64,6 +64,7 @@ function nql:__init(args)
     self.transition_params = args.transition_params or {}
 
     self.network    = args.network or self:createNetwork()
+    self.heads_net  = args.heads_net
 
     --Actve Head
     self.active_head	= torch.random(1,self.num_heads)
@@ -97,6 +98,37 @@ function nql:__init(args)
         self.network:cuda()
     else
         self.network:float()
+    end
+
+    -- Same for the heads network file and later for attention network
+    local heads_network_function
+    if not (type(self.heads_net) == 'string') then
+        error("The type of the heads network provided in NeuralQLearner" ..
+              " is not a string!")
+    end
+
+    local msg, err = pcall(require, self.heads_net)
+    if not msg then
+        -- try to load saved agent
+        local err_msg, exp = pcall(torch.load, self.heads_net)
+        if not err_msg then
+            error("Could not find heads network file ")
+        end
+        if self.best and exp.best_model then
+            self.heads_net = exp.best_model
+        else
+            self.heads_net = exp.model
+        end
+    else
+        print('Creating Agent Network from ' .. self.heads_net)
+        self.heads_net = err
+        self.heads_net = self:heads_net()
+    end
+
+    if self.gpu and self.gpu >= 0 then
+        self.heads_net:cuda()
+    else
+        self.heads_net:float()
     end
 
     -- Load preprocessing network.
@@ -146,14 +178,24 @@ function nql:__init(args)
     self.w, self.dw = self.network:getParameters()
     self.dw:zero()
 
+    self.w_head, self.dw_head = self.heads_net:getParameters()
+    self.dw_head:zero()
+
     self.deltas = self.dw:clone():fill(0)
 
     self.tmp= self.dw:clone():fill(0)
     self.g  = self.dw:clone():fill(0)
     self.g2 = self.dw:clone():fill(0)
 
+    self.deltas_head = self.dw_head:clone():fill(0)
+
+    self.tmp_head= self.dw_head:clone():fill(0)
+    self.g_head  = self.dw_head:clone():fill(0)
+    self.g2_head = self.dw_head:clone():fill(0)
+
     if self.target_q then
         self.target_network = self.network:clone()
+        self.target_network_heads = self.heads_net:clone()
     end
 end
 
@@ -199,14 +241,16 @@ function nql:getQUpdate(args)
     local target_q_net
     if self.target_q then
         target_q_net = self.target_network
+        target_q_heads = self.target_network_heads
     else
         target_q_net = self.network
+        target_q_heads = self.heads_net
     end
 
     -- Really need to find a better way to do the rest of this function
 
     -- Compute max_a Q(s_2, a).
-    local q2_total = self.target_network:forward(s2):float():squeeze()
+    local q2_total = self.heads_net:forward(self.network:forward(s2)):float():squeeze()
     q2_max = torch.zeros(self.minibatch_size,self.num_heads)
     for i=1,self.num_heads do
     	local q2_per_head = q2_total:narrow(2,(i-1)*self.n_actions+1,self.n_actions)
@@ -226,7 +270,7 @@ function nql:getQUpdate(args)
     delta:add(q2)
 
     -- q = Q(s,a)
-    local q_all = self.network:forward(s):float():squeeze()
+    local q_all = self.heads_net:forward(self.network:forward(s)):float():squeeze()
     q = torch.FloatTensor(q_all:size(1),self.num_heads)
     for j = 1,self.num_heads do
         for i = 1,q_all:size(1) do
@@ -263,12 +307,15 @@ function nql:qLearnMinibatch()
         term=term, update_qmax=true}
 
     -- zero gradients of parameters
+    self.dw_head:zero()
     self.dw:zero()
 
     -- get new gradient
-    self.network:backward(s, targets)
+    local intermediate_grad = self.heads_net:backward(self.network:forward(s2),targets)
+    self.network:backward(s, intermediate_grad)
     -- add weight cost to gradient
     self.dw:add(-self.wc, self.w)
+    self.dw_head:add(-self.wc, self.w_head)
 
     -- compute linearly annealed learning rate
     local t = math.max(0, self.numSteps - self.learn_start)
@@ -286,9 +333,20 @@ function nql:qLearnMinibatch()
     self.tmp:add(0.01)
     self.tmp:sqrt()
 
+    self.g_head:mul(0.95):add(0.05, self.dw_head)
+    self.tmp_head:cmul(self.dw_head, self.dw_head)
+    self.g2_head:mul(0.95):add(0.05, self.tmp_head)
+    self.tmp_head:cmul(self.g_head, self.g_head)
+    self.tmp_head:mul(-1)
+    self.tmp_head:add(self.g2_head)
+    self.tmp_head:add(0.01)
+    self.tmp_head:sqrt()
+
     -- accumulate update
     self.deltas:mul(0):addcdiv(self.lr, self.dw, self.tmp)
     self.w:add(self.deltas)
+    self.deltas_head:mul(0):addcdiv(self.lr, self.dw_head, self.tmp_head)
+    self.w_head:add(self.deltas_head)
 end
 
 
@@ -350,7 +408,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
             -- actionIndex = self:eGreedy(curState, testing_ep)
             actionIndex = self:greedy(curState)
         else
-            actionIndex = self:eGreedy(curState)
+            actionIndex = self:greedy(curState)
         end
     end
 
@@ -411,7 +469,8 @@ function nql:greedy(state)
         state = state:cuda()
     end
 
-    local q = self.network:forward(state):float():squeeze()
+    local q = self.heads_net:forward(self.network:forward(state)):float():squeeze()
+
     q = q:narrow(1,(self.active_head-1)*self.n_actions+1,self.n_actions)
     local maxq = q[1]
     local besta = {1}
@@ -459,11 +518,22 @@ function nql:_loadNet()
     return net
 end
 
+function nql:_loadHeads()
+    local net = self.heads_net
+    if self.gpu then
+        net:cuda()
+    else
+        net:float()
+    end
+    return net
+end
+
 
 function nql:init(arg)
     self.actions = arg.actions
     self.n_actions = #self.actions
     self.network = self:_loadNet()
+    self.heads_net = self:_loadHeads()
     -- Generate targets.
     self.transitions:empty()
 end

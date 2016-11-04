@@ -37,6 +37,9 @@ function torchSetup(_opt)
         if opt.network ~= '' then
             opt.agent_params.network = opt.network
         end
+        if opt.heads_net ~= '' then
+            opt.agent_params.heads_net = opt.heads_net
+        end
     end
 
     --- general setup
@@ -124,6 +127,9 @@ function setup(_opt)
     _opt.agent_params.best      = _opt.best
     if _opt.network ~= '' then
         _opt.agent_params.network = _opt.network
+    end
+    if _opt.heads_net ~= '' then
+        _opt.agent_params.heads_net = _opt.heads_net
     end
     _opt.agent_params.verbose = _opt.verbose
     if not _opt.agent_params.state_dim then
