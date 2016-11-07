@@ -69,7 +69,7 @@ function Thompson:updateOutput(input)
             self.active = {}
             self.active[i] = torch.random(self.k)
         end
-        print(self.active[i])
+        -- print(self.active[i])
         self.output:add(self.mods[self.active[i]]:updateOutput(input))
     end
     self.output:div(#self.active)
