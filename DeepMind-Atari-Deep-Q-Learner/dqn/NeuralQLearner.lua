@@ -352,7 +352,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     if not testing then
         self.numSteps = self.numSteps + 1
     end
-
+    print(self.numSteps)
     self.lastState = state:clone()
     self.lastAction = actionIndex
     self.lastTerminal = terminal
