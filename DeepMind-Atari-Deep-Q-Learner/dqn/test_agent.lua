@@ -95,7 +95,7 @@ while not terminal do
     screen, reward, terminal = game_env:step(game_actions[action_index], false)
 
     -- display screen
-    image.display({image=screen, win=win})
+    --image.display({image=screen, win=win})
 
     -- create gd image from tensor
     jpg = image.compressJPG(screen:squeeze(), 100)
