@@ -78,6 +78,8 @@ while step < opt.steps do
     torch.save('test.dat',testing)
     if step<learn_start then
         tip = 1
+    else
+        tip = 0
     end
     local action_index = agent:perceive(reward, screen, terminal, false, tip)
     -- game over? get next game!
