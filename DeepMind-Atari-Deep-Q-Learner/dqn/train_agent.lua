@@ -75,12 +75,8 @@ print("Iteration ..", step)
 local win = nil
 while step < opt.steps do
     step = step + 1
-    if step>learn_start then
-        local action_index = agent:perceive(reward, screen, terminal, false, 0)
-    else
-        local action_index = agent:perceive(reward, screen, terminal, false, 1)
-    end
-
+    local action_index = agent:perceive(reward, screen, terminal, false, (step<learn_start))
+    print(action_index)
     -- game over? get next game!
     if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
@@ -116,7 +112,7 @@ while step < opt.steps do
 
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
-            local action_index = agent:perceive(reward, screen, terminal, true, 0)
+            local action_index = agent:perceive(reward, screen, terminal, true)
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])
