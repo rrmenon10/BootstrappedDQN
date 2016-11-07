@@ -53,9 +53,7 @@ function Thompson:updateOutput(input)
     self.output:zero()
     
     local testing = torch.load('test.dat')
-
-    -- reset active heads
-    self.active = {}
+    local target = torch.load('target.dat')
 
     -- pick a random k
     if testing=="true" then
@@ -65,7 +63,11 @@ function Thompson:updateOutput(input)
         end
     else
         i=1
-        self.active[i] = torch.random(self.k)
+        if target=="false" then
+            -- reset active heads
+            self.active = {}
+            self.active[i] = torch.random(self.k)
+        end
         -- print(self.active[i])
         self.output:add(self.mods[self.active[i]]:updateOutput(input))
     end

@@ -205,7 +205,11 @@ function nql:getQUpdate(args)
     end
 
     -- Compute max_a Q(s_2, a).
+    local target = "true"
+    torch.save('target.dat',target)
     q2_max = target_q_net:forward(s2):float():max(2)
+    local target = "false"
+    torch.save('target.dat',target)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)

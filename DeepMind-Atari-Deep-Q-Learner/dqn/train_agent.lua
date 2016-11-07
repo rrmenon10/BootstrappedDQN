@@ -80,12 +80,16 @@ while step < opt.steps do
     -- game over? get next game!
     if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
+        local terminal = "false"
+        torch.save('terminal.dat',testing)
     else
         if opt.random_starts > 0 then
             screen, reward, terminal = game_env:nextRandomGame()
         else
             screen, reward, terminal = game_env:newGame()
         end
+        local terminal = "true"
+        torch.save('terminal.dat',testing)
     end
 
     -- display screen

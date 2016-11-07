@@ -1,7 +1,6 @@
 --[[
    Deep Exploration via Bootstrapped DQN
    Ian Osband, Charles Blundell, Alexander Pritzel, Benjamin Van Roy
-   Implemented by Yannis M. Assael (www.yannisassael.com), 2016
    Adapted by Rakesh R Menon, Manu S Halvagal
    Usage: nn.Bootstrap(nn.Linear(size_in, size_out), 10, 0.08)
 ]]--
@@ -52,16 +51,24 @@ function Bootstrap:updateOutput(input)
         self.output:resize(nframe, self.mod.weight:size(1))
     end
     self.output:zero()
-
-    -- reset active heads
-    self.active = {}
+    
+    local testing = torch.load('test.dat')
+    local terminal = torch.load('terminal.dat')
 
     -- pick a random k
-    local k = 1--torch.random(self.k)
-
-    -- select active heads
-    for i=1,k do
-        self.active[i] = torch.random(self.k)
+    if testing=="true" then
+        for i=1,10 do
+            self.active[i] = i
+            self.output:add(self.mods[self.active[i]]:updateOutput(input))
+        end
+    else
+        i=1
+        if terminal="true" then
+            -- reset active heads
+            self.active = {}
+            self.active[i] = torch.random(self.k)
+        end
+        print(self.active[i])
         self.output:add(self.mods[self.active[i]]:updateOutput(input))
     end
     self.output:div(#self.active)
