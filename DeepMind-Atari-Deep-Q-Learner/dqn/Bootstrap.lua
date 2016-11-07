@@ -66,6 +66,7 @@ function Bootstrap:updateOutput(input)
         print("CAME TILL THIS CONDITION")
         if terminal=="true" then
             -- reset active heads
+            print("READ THIS CONDITION")
             self.active = {}
             self.active[i] = torch.random(self.k)
         end
