@@ -54,7 +54,7 @@ function Bootstrap:updateOutput(input)
     
     local testing = torch.load('test.dat')
     local terminal = torch.load('terminal.dat')
-
+    print(terminal.." READ THIS BRO")
     -- pick a random k
     if testing=="true" then
         for i=1,10 do
