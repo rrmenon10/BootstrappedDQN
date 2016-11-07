@@ -6,7 +6,7 @@ See LICENSE file for full terms of limited license.
 
 require "initenv"
 require "nn"
--- require "Bootstrap"
+require "Bootstrap"
 
 function create_network(args)
 

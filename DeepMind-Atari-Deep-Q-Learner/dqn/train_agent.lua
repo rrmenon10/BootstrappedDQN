@@ -1,9 +1,3 @@
---[[
-Copyright (c) 2014 Google Inc.
-
-See LICENSE file for full terms of limited license.
-]]
-
 if not dqn then
     require "initenv"
 end
@@ -42,7 +36,6 @@ cmd:option('-eval_steps', 10^5, 'number of evaluation steps')
 cmd:option('-verbose', 2,
            'the higher the level, the more information is printed to screen')
 cmd:option('-threads', 1, 'number of BLAS threads')
-cmd:option('-heads', 1, 'number of Bootstrap heads')
 cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:text()
@@ -75,16 +68,19 @@ local total_reward
 local nrewards
 local nepisodes
 local episode_reward
-agent.active_head = torch.random(1,agent.num_heads)
---print(agent.active_head)
+
 local screen, reward, terminal = game_env:getState()
 
 print("Iteration ..", step)
 local win = nil
 while step < opt.steps do
     step = step + 1
-    local action_index = agent:perceive(reward, screen, terminal, false, (step<learn_start))
-    --print(terminal,reward,action_index)
+    if step>learn_start then
+        local action_index = agent:perceive(reward, screen, terminal, false, 0)
+    else
+        local action_index = agent:perceive(reward, screen, terminal, false, 1)
+    end
+
     -- game over? get next game!
     if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
@@ -94,12 +90,10 @@ while step < opt.steps do
         else
             screen, reward, terminal = game_env:newGame()
         end
-        agent.active_head = torch.random(1,agent.num_heads)
-        --print(agent.active_head)
     end
 
     -- display screen
-    --win = image.display({image=screen, win=win})
+    win = image.display({image=screen, win=win})
 
     if step % opt.prog_freq == 0 then
         assert(step==agent.numSteps, 'trainer step: ' .. step ..
@@ -122,10 +116,13 @@ while step < opt.steps do
 
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
-            local action_index = agent:perceive(reward, screen, terminal, true)
+            local action_index = agent:perceive(reward, screen, terminal, true, 0)
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])
+
+            -- display screen
+            win = image.display({image=screen, win=win})
 
             if estep%1000 == 0 then collectgarbage() end
 
@@ -140,7 +137,6 @@ while step < opt.steps do
                 episode_reward = 0
                 nepisodes = nepisodes + 1
                 screen, reward, terminal = game_env:nextRandomGame()
-                agent.active_head = torch.random(1,agent.num_heads)
             end
         end
 
