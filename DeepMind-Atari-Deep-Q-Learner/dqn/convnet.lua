@@ -6,7 +6,7 @@ See LICENSE file for full terms of limited license.
 
 require "initenv"
 require "nn"
-require "Bootstrap"
+require "Thompson"
 
 function create_network(args)
 
@@ -59,9 +59,9 @@ function create_network(args)
     -- add the last fully connected layer (to actions)
     -- net:add(nn.Linear(last_layer_size, args.n_actions))
 
-    -- THIS PART FOR BOOTSTRAP DQN
+    -- THIS PART FOR THOMPSON DQN
 
-    net:add(nn.Bootstrap(nn.Linear(args.n_hid[1],args.n_actions),10,0.08))
+    net:add(nn.Thompson(nn.Linear(args.n_hid[1],args.n_actions),10,0.08))
 
     -- THIS PART FOR SOFT ATTENTION
     -- head_att = nn.ConcatTable()

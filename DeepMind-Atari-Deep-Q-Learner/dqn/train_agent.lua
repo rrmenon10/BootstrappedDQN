@@ -17,7 +17,6 @@ cmd:option('-pool_frms', '',
 cmd:option('-actrep', 1, 'how many times to repeat action')
 cmd:option('-random_starts', 0, 'play action 0 between 1 and random_starts ' ..
            'number of times at the start of each training episode')
-
 cmd:option('-name', '', 'filename used for saving network and training history')
 cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-agent', '', 'name of agent file to use')
@@ -75,6 +74,8 @@ print("Iteration ..", step)
 local win = nil
 while step < opt.steps do
     step = step + 1
+    local testing = "false"
+    torch.save('test.dat',testing)
     local action_index = agent:perceive(reward, screen, terminal, false, (step<learn_start))
     -- game over? get next game!
     if not terminal then
@@ -111,6 +112,8 @@ while step < opt.steps do
 
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
+            local testing = "true"
+            torch.save('test.dat',testing)
             local action_index = agent:perceive(reward, screen, terminal, true)
 
             -- Play game in test mode (episodes don't end when losing a life)

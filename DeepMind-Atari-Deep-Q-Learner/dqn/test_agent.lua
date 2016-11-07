@@ -25,7 +25,6 @@ cmd:option('-pool_frms', '',
 cmd:option('-actrep', 1, 'how many times to repeat action')
 cmd:option('-random_starts', 0, 'play action 0 between 1 and random_starts ' ..
            'number of times at the start of each training episode')
-
 cmd:option('-name', '', 'filename used for saving network and training history')
 cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-agent', '', 'name of agent file to use')

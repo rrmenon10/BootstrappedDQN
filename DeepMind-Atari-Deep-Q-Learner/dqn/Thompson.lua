@@ -1,7 +1,7 @@
 --[[
    Deep Exploration via Thompson DQN
    Ian Osband, Charles Blundell, Alexander Pritzel, Benjamin Van Roy
-   Implemented by Yannis M. Assael (www.yannisassael.com), 2016
+   Adapted by Rakesh R Menon, Manu S Halvagal
    Usage: nn.Thompson(nn.Linear(size_in, size_out), 10, 0.08)
 ]]--
 
@@ -29,6 +29,7 @@ function Thompson:__init(mod, k, param_init)
 end
 
 function Thompson:clearState()
+    self.active = {}
     self.mods_container:clearState()
     return parent.clearState(self)
 end
@@ -50,18 +51,21 @@ function Thompson:updateOutput(input)
         self.output:resize(nframe, self.mod.weight:size(1))
     end
     self.output:zero()
+    
+    local testing = torch.load('test.dat')
 
     -- reset active heads
     self.active = {}
 
     -- pick a random k
-    local k = torch.random(self.k)
-
-    -- select active heads
-    for i=1,k do
-        self.active[i] = torch.random(self.k)
-        self.output:add(self.mods[self.active[i]]:updateOutput(input))
-    end
+    if testing=="true" then
+        for i=1,10 do
+            self.active[i] = i
+            self.output:add(self.mods[self.active[i]]:updateOutput(input))
+        end
+    else
+        self.active = torch.random(self.k)
+        self.output:add(self.mods[self.active]:updateOutput(input))
     self.output:div(#self.active)
 
     return self.output
@@ -69,14 +73,14 @@ end
 
 function Thompson:updateGradInput(input, gradOutput)
     -- rescale gradients
-    gradOutput:div(#self.active)
+    gradOutput:div(self.k)
 
     -- resize gradinput
     self.gradInput:resizeAs(input):zero()
 
     -- accumulate gradinputs
-    for i=1,#self.active do
-        self.gradInput:add(self.mods[self.active[i]]:updateGradInput(input, gradOutput))
+    for i=1,self.k do
+        self.gradInput:add(self.mods[i]:updateGradInput(input, gradOutput))
     end
 
     return self.gradInput
@@ -84,10 +88,10 @@ end
 
 function Thompson:accGradParameters(input, gradOutput, scale)
     -- rescale gradients
-    gradOutput:div(#self.active)
+    gradOutput:div(self.k)
 
     -- accumulate grad parameters
-    for i=1,#self.active do
-        self.mods[self.active[i]]:accGradParameters(input, gradOutput, scale)    
+    for i=1,self.k do
+        self.mods[i]:accGradParameters(input, gradOutput, scale)    
     end
 end
