@@ -190,12 +190,13 @@ function nql:getQUpdate(args)
     r = args.r
     s2 = args.s2
     term = args.term
+
     -- The order of calls to forward is a bit odd in order
     -- to avoid unnecessary calls (we only need 2).
+
     -- delta = r + (1-terminal) * gamma * max_a Q(s2, a) - Q(s, a)
-    term = term:clone():float():mul(-1):add(1):resize(self.minibatch_size,1)
-    term = torch.repeatTensor(term,1,self.num_heads)
-    
+    term = term:clone():float():mul(-1):add(1)
+
     local target_q_net
     if self.target_q then
         target_q_net = self.target_network
@@ -203,47 +204,35 @@ function nql:getQUpdate(args)
         target_q_net = self.network
     end
 
-    -- Really need to find a better way to do the rest of this function
-
     -- Compute max_a Q(s_2, a).
-    local q2_total = self.target_network:forward(s2):float():squeeze()
-    q2_max = torch.zeros(self.minibatch_size,self.num_heads)
-    for i=1,self.num_heads do
-    	local q2_per_head = q2_total:narrow(2,(i-1)*self.n_actions+1,self.n_actions)
-    	--print(torch.max(q2_per_head,2))
-      local kf
-      q2_per_head, kf = q2_per_head:max(2)
-      q2_max:narrow(2,i,1):copy(q2_per_head)
-    end
-    -- q2_max = target_q_net:forward(s2):float():max(2)
+    q2_max = target_q_net:forward(s2):float():max(2)
+
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)
-    delta = r:clone():float():resize(self.minibatch_size,1)
-    delta = torch.repeatTensor(delta,1,self.num_heads)
+
+    delta = r:clone():float()
+
     if self.rescale_r then
         delta:div(self.r_max)
     end
     delta:add(q2)
 
     -- q = Q(s,a)
-    local q_all = self.network:forward(s):float():squeeze()
-    q = torch.FloatTensor(q_all:size(1),self.num_heads)
-    for j = 1,self.num_heads do
-        for i = 1,q_all:size(1) do
-            q[i][j] = q_all[i][(j-1)*self.n_actions+a[i]]
-        end
+    local q_all = self.network:forward(s):float()
+    q = torch.FloatTensor(q_all:size(1))
+    for i=1,q_all:size(1) do
+        q[i] = q_all[i][a[i]]
     end
     delta:add(-1, q)
+
     if self.clip_delta then
         delta[delta:ge(self.clip_delta)] = self.clip_delta
-        --print(self.clip_delta)
         delta[delta:le(-self.clip_delta)] = -self.clip_delta
     end
-    local targets = torch.zeros(self.minibatch_size, self.n_actions*self.num_heads):float()
-    for j = 1,self.num_heads do
-        for i=1,math.min(self.minibatch_size,a:size(1)) do
-            targets[i][(j-1)*self.n_actions+a[i]] = delta[i][j]
-        end
+
+    local targets = torch.zeros(self.minibatch_size, self.n_actions):float()
+    for i=1,math.min(self.minibatch_size,a:size(1)) do
+        targets[i][a[i]] = delta[i]
     end
 
     if self.gpu >= 0 then targets = targets:cuda() end
@@ -267,6 +256,7 @@ function nql:qLearnMinibatch()
 
     -- get new gradient
     self.network:backward(s, targets)
+
     -- add weight cost to gradient
     self.dw:add(-self.wc, self.w)
 
@@ -346,20 +336,12 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Select action
     local actionIndex = 1
     if not terminal then
-        if not testing_ep then
-            -- actionIndex = self:eGreedy(curState, testing_ep)
-            actionIndex = self:greedy(curState)
-        else
-            actionIndex = self:eGreedy(curState)
-        end
+        actionIndex = self:eGreedy(curState, testing_ep)
     end
 
     self.transitions:add_recent_action(actionIndex)
-    if self.numSteps == self.learn_start then
-      self.target_network = self.network
-    end
+
     --Do some Q-learning updates
-    print(self.numSteps)
     if self.numSteps > self.learn_start and not testing and
         self.numSteps % self.update_freq == 0 then
         for i = 1, self.n_replay do
@@ -412,7 +394,6 @@ function nql:greedy(state)
     end
 
     local q = self.network:forward(state):float():squeeze()
-    q = q:narrow(1,(self.active_head-1)*self.n_actions+1,self.n_actions)
     local maxq = q[1]
     local besta = {1}
 

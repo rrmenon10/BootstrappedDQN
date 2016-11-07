@@ -56,7 +56,7 @@ function Bootstrap:updateOutput(input)
     self.active = {}
 
     -- pick a random k
-    local k = torch.random(self.k)
+    local k = 1--torch.random(self.k)
 
     -- select active heads
     for i=1,k do
@@ -70,14 +70,14 @@ end
 
 function Bootstrap:updateGradInput(input, gradOutput)
     -- rescale gradients
-    gradOutput:div(#self.active)
+    gradOutput:div(self.k)
 
     -- resize gradinput
     self.gradInput:resizeAs(input):zero()
 
     -- accumulate gradinputs
-    for i=1,#self.active do
-        self.gradInput:add(self.mods[self.active[i]]:updateGradInput(input, gradOutput))
+    for i=1,self.k do
+        self.gradInput:add(self.mods[i]:updateGradInput(input, gradOutput))
     end
 
     return self.gradInput
@@ -85,10 +85,10 @@ end
 
 function Bootstrap:accGradParameters(input, gradOutput, scale)
     -- rescale gradients
-    gradOutput:div(#self.active)
+    gradOutput:div(self.k)
 
     -- accumulate grad parameters
-    for i=1,#self.active do
-        self.mods[self.active[i]]:accGradParameters(input, gradOutput, scale)    
+    for i=1,self.k do
+        self.mods[i]:accGradParameters(input, gradOutput, scale)    
     end
 end
