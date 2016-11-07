@@ -12,6 +12,7 @@ function Bootstrap:__init(mod, k, param_init)
     
     self.k = k
     self.active = {}
+    self.active[1] = torch.random(self.k)
     self.param_init = param_init
     self.mod = mod:clearState()
     self.mods = {}

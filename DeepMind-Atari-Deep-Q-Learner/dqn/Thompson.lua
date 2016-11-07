@@ -12,6 +12,7 @@ function Thompson:__init(mod, k, param_init)
     
     self.k = k
     self.active = {}
+    self.active[1] = torch.random(self.k)
     self.param_init = param_init
     self.mod = mod:clearState()
     self.mods = {}
@@ -68,7 +69,7 @@ function Thompson:updateOutput(input)
             self.active = {}
             self.active[i] = torch.random(self.k)
         end
-        -- print(self.active[i])
+        print(self.active[i])
         self.output:add(self.mods[self.active[i]]:updateOutput(input))
     end
     self.output:div(#self.active)
