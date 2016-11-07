@@ -93,6 +93,7 @@ while step < opt.steps do
         end
     end
     if terminal then
+        print("WRITING IN FILE")
         torch.save('terminal.dat',"true")
     else
         torch.save('terminal.dat',"false")

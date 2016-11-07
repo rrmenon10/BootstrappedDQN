@@ -67,7 +67,6 @@ function Bootstrap:updateOutput(input)
             -- reset active heads
             self.active = {}
             self.active[i] = torch.random(self.k)
-            print("I came through here too")
         end
         print(self.active[i])
         self.output:add(self.mods[self.active[i]]:updateOutput(input))
