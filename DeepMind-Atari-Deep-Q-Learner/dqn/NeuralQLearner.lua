@@ -66,7 +66,7 @@ function nql:__init(args)
     self.network    = args.network or self:createNetwork()
 
     --Actve Head
-    self.active_head	= torch.random(1,self.num_heads)
+    -- self.active_head	= torch.random(1,self.num_heads)
 
     -- check whether there is a network file
     local network_function
