@@ -54,7 +54,6 @@ function Bootstrap:updateOutput(input)
     
     local testing = torch.load('test.dat')
     local terminal = torch.load('terminal.dat')
-    print(terminal.." READ THIS BRO")
     -- pick a random k
     if testing=="true" then
         for i=1,10 do
@@ -63,10 +62,8 @@ function Bootstrap:updateOutput(input)
         end
     else
         i=1
-        print("CAME TILL THIS CONDITION")
         if terminal=="true" then
             -- reset active heads
-            print("READ THIS CONDITION")
             self.active = {}
             self.active[i] = torch.random(self.k)
         end

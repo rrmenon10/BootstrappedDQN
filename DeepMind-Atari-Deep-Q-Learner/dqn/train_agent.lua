@@ -86,7 +86,6 @@ while step < opt.steps do
     if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
         if terminal then
-            print("WRITING IN FILE")
             torch.save('terminal.dat',"true")
         else
             torch.save('terminal.dat',"false")

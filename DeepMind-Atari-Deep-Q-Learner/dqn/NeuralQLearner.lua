@@ -368,7 +368,6 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     if not terminal then
         return actionIndex
     else
-        print("YES")
         return 0
     end
 end
