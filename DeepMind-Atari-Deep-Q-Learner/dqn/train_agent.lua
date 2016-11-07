@@ -76,7 +76,10 @@ while step < opt.steps do
     step = step + 1
     local testing = "false"
     torch.save('test.dat',testing)
-    local action_index = agent:perceive(reward, screen, terminal, false, (step<learn_start))
+    if step<learn_start then
+        tip = 1
+    end
+    local action_index = agent:perceive(reward, screen, terminal, false, tip)
     -- game over? get next game!
     if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
