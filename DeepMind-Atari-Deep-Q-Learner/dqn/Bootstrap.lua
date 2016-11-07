@@ -9,7 +9,7 @@ local Bootstrap, parent = torch.class('nn.Bootstrap', 'nn.Module')
 
 function Bootstrap:__init(mod, k, param_init)
     parent.__init(self)
-    
+    torch.manualSeed(123)
     self.k = k
     self.active = {}
     self.active[1] = torch.random(self.k)
