@@ -38,7 +38,7 @@ cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:text()
-
+torch.save('terminal.dat',"true")
 local opt = cmd:parse(arg)
 
 --- General setup.
@@ -118,7 +118,7 @@ while step < opt.steps do
         for estep=1,opt.eval_steps do
             local testing = "true"
             torch.save('test.dat',testing)
-            local action_index = agent:perceive(reward, screen, terminal, true)
+            local action_index = agent:perceive(reward, screen, terminal, true, 0)
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])

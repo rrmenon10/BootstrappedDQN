@@ -340,7 +340,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Select action
     local actionIndex = 1
     if not terminal then
-        actionIndex = self:eGreedy(curState, 0)
+        actionIndex = self:eGreedy(curState, testing_ep)
     end
 
     self.transitions:add_recent_action(actionIndex)
@@ -368,15 +368,16 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     if not terminal then
         return actionIndex
     else
+        print("YES")
         return 0
     end
 end
 
 
 function nql:eGreedy(state, testing_ep)
-    self.ep = testing_ep or (self.ep_end +
-                math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
-                math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
+    self.ep = testing_ep --or (self.ep_end +
+                --math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
+                --math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
     -- Epsilon greedy
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)
