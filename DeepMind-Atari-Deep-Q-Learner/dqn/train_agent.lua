@@ -85,6 +85,12 @@ while step < opt.steps do
     -- game over? get next game!
     if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
+        if terminal then
+            print("WRITING IN FILE")
+            torch.save('terminal.dat',"true")
+        else
+            torch.save('terminal.dat',"false")
+        end
     else
         if opt.random_starts > 0 then
             screen, reward, terminal = game_env:nextRandomGame()
@@ -92,12 +98,7 @@ while step < opt.steps do
             screen, reward, terminal = game_env:newGame()
         end
     end
-    if terminal then
-        print("WRITING IN FILE")
-        torch.save('terminal.dat',"true")
-    else
-        torch.save('terminal.dat',"false")
-    end
+
     -- display screen
     --win = image.display({image=screen, win=win})
 
