@@ -63,6 +63,7 @@ function Bootstrap:updateOutput(input)
         end
     else
         i=1
+        print("CAME TILL THIS CONDITION")
         if terminal=="true" then
             -- reset active heads
             self.active = {}
