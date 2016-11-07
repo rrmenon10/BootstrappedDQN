@@ -311,7 +311,7 @@ function nql:qLearnMinibatch()
     self.dw:zero()
 
     -- get new gradient
-    local intermediate_grad = self.heads_net:backward(self.network:forward(s2),targets)
+    local intermediate_grad = self.heads_net:backward(self.network:forward(s),targets)
     self.network:backward(s, intermediate_grad)
     -- add weight cost to gradient
     self.dw:add(-self.wc, self.w)
