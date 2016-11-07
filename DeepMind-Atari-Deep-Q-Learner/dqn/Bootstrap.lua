@@ -63,7 +63,7 @@ function Bootstrap:updateOutput(input)
         end
     else
         i=1
-        if terminal="true" then
+        if terminal=="true" then
             -- reset active heads
             self.active = {}
             self.active[i] = torch.random(self.k)
