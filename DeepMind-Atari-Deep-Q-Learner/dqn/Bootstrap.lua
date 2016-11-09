@@ -56,12 +56,12 @@ function Bootstrap:updateOutput(input)
     local terminal = torch.load('terminal.dat')
     -- pick a random k
     if testing=="true" then
-        for i=1,10 do
-            self.active[i] = i
-            self.output:add(self.mods[self.active[i]]:updateOutput(input))
+        for i=1,self.k do
+            self.output:add(self.mods[i]:updateOutput(input))
         end
+        self.output:div(self.k)
     else
-        i=1
+        local i=1
         if terminal=="true" then
             -- reset active heads
             self.active = {}
@@ -69,15 +69,14 @@ function Bootstrap:updateOutput(input)
         end
         -- print(self.active[i])
         self.output:add(self.mods[self.active[i]]:updateOutput(input))
+        self.output:div(#self.active)
     end
-    self.output:div(#self.active)
-
     return self.output
 end
 
 function Bootstrap:updateGradInput(input, gradOutput)
     -- rescale gradients
-    gradOutput:div(self.k)
+    -- gradOutput:div(self.k)
 
     -- resize gradinput
     self.gradInput:resizeAs(input):zero()
@@ -86,6 +85,7 @@ function Bootstrap:updateGradInput(input, gradOutput)
     for i=1,self.k do
         self.gradInput:add(self.mods[i]:updateGradInput(input, gradOutput))
     end
+    gradInput:div(self.k)
 
     return self.gradInput
 end
