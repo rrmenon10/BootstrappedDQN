@@ -85,7 +85,7 @@ function Bootstrap:updateGradInput(input, gradOutput)
     for i=1,self.k do
         self.gradInput:add(self.mods[i]:updateGradInput(input, gradOutput))
     end
-    gradInput:div(self.k)
+    self.gradInput:div(self.k)
 
     return self.gradInput
 end
