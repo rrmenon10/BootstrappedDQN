@@ -26,6 +26,8 @@ function Bootstrap:__init(mod, k, param_init)
         end
         self.mods_container:add(self.mods[k])
     end
+
+    self.dimOut = self.mod.weight:size(1)
 end
 
 function Bootstrap:clearState()
@@ -45,50 +47,53 @@ end
 function Bootstrap:updateOutput(input)
     -- resize output    
     if input:dim() == 1 then
-        self.output:resize(self.mod.weight:size(1))
+        self.output:resize(1,self.dimOut*self.k)
     elseif input:dim() == 2 then
         local nframe = input:size(1)
-        self.output:resize(nframe, self.mod.weight:size(1))
+        self.output:resize(nframe, self.dimOut*self.k)
     end
     self.output:zero()
 
     -- reset active heads
-    self.active = {}
+    -- self.active = {}
 
     -- pick a random k
-    local k = torch.random(self.k)
+    -- local k = torch.random(self.k)
 
     -- select active heads
-    for i=1,k do
-        self.active[i] = torch.random(self.k)
-        self.output:add(self.mods[self.active[i]]:updateOutput(input))
+    for i=1,self.k do
+        -- self.active[i] = torch.random(self.k)
+        self.output:narrow(2,(i-1)*self.dimOut+1,self.dimOut):copy(self.mods[i]:updateOutput(input))
+        -- self.output:add(self.mods[i]:updateOutput(input))
     end
-    self.output:div(#self.active)
+    -- self.output:div(#self.active)
 
     return self.output
 end
 
 function Bootstrap:updateGradInput(input, gradOutput)
     -- rescale gradients
-    gradOutput:div(#self.active)
+    -- gradOutput:div(#self.active)
 
     -- resize gradinput
     self.gradInput:resizeAs(input):zero()
 
     -- accumulate gradinputs
-    for i=1,#self.active do
-        self.gradInput:add(self.mods[self.active[i]]:updateGradInput(input, gradOutput))
+    for i=1,self.k do
+        self.gradInput:add(self.mods[i]:updateGradInput(input, gradOutput:narrow(2,(i-1)*self.dimOut+1,self.dimOut)))
     end
+
+    self.gradInput:div(math.sqrt(self.k))
 
     return self.gradInput
 end
 
 function Bootstrap:accGradParameters(input, gradOutput, scale)
     -- rescale gradients
-    gradOutput:div(#self.active)
+    -- gradOutput:div(#self.active)
 
     -- accumulate grad parameters
-    for i=1,#self.active do
-        self.mods[self.active[i]]:accGradParameters(input, gradOutput, scale)    
+    for i=1,self.k do
+        self.mods[i]:accGradParameters(input, gradOutput:narrow(2,(i-1)*self.dimOut+1,self.dimOut), scale)    
     end
 end

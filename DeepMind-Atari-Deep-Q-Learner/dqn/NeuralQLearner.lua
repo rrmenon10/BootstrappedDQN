@@ -350,7 +350,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
             -- actionIndex = self:eGreedy(curState, testing_ep)
             actionIndex = self:greedy(curState)
         else
-            actionIndex = self:eGreedy(curState)
+            actionIndex = self:greedy(curState)
         end
     end
 
@@ -410,7 +410,7 @@ function nql:greedy(state)
     if self.gpu >= 0 then
         state = state:cuda()
     end
-
+    
     local q = self.network:forward(state):float():squeeze()
     q = q:narrow(1,(self.active_head-1)*self.n_actions+1,self.n_actions)
     local maxq = q[1]

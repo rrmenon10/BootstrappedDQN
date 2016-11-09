@@ -6,7 +6,6 @@ See LICENSE file for full terms of limited license.
 
 require "initenv"
 require "nn"
---require "GradScale"
 require "Bootstrap"
 
 function create_network(args)
@@ -65,20 +64,11 @@ function create_network(args)
     -- net:add(nn.Bootstrap(nn.Linear(nel,args.n_actions),10,0.08))
 
     -- THIS PART FOR SOFT ATTENTION
-    heads = nn.Concat(2)
-    --heads:add(nn.GradScale(0.1))
-    for i=1,args.num_heads do
-        mlp = nn.Sequential()
-        mlp:add(nn.Linear(args.n_hid[1],args.n_actions))
-        -- mlp:add(args.nl())
-        -- for j=1,(#args.n_hid-1) do
-        --     mlp:add(nn.Linear(args.n_hid[i], args.n_hid[i+1]))
-        --     mlp:add(args.nl())
-        -- end
-        -- mlp:add(nn.Linear(last_layer_size, args.n_actions))
-        heads:add(mlp)
-    end
-    net:add(heads)
+    local heads_mlp = nn.Linear(args.n_hid[1],args.n_actions)
+
+    local heads_net = nn.Bootstrap(heads_mlp, args.num_heads, 0.08)
+
+    net:add(heads_net)
 
     if args.gpu >=0 then
         net:cuda()
