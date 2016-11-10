@@ -83,7 +83,7 @@ print("Iteration ..", step)
 local win = nil
 while step < opt.steps do
     step = step + 1
-    local action_index = agent:perceive(reward, screen, terminal, false, (step<learn_start))
+    local action_index = agent:perceive(reward, screen, terminal, false)
     --print(terminal,reward,action_index)
     -- game over? get next game!
     if not terminal then

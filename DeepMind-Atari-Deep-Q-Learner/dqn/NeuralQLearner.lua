@@ -184,16 +184,24 @@ end
 function nql:getQUpdate(args)
     local s, a, r, s2, term, delta
     local q, q2, q2_max
+    local num_samples
 
     s = args.s
     a = args.a
     r = args.r
     s2 = args.s2
     term = args.term
+
+    if args.testing then
+        num_samples = self.valid_size
+    else
+        num_samples = self.minibatch_size
+    end
+
     -- The order of calls to forward is a bit odd in order
     -- to avoid unnecessary calls (we only need 2).
     -- delta = r + (1-terminal) * gamma * max_a Q(s2, a) - Q(s, a)
-    term = term:clone():float():mul(-1):add(1):resize(self.minibatch_size,1)
+    term = term:clone():float():mul(-1):add(1):resize(num_samples,1)
     term = torch.repeatTensor(term,1,self.num_heads)
     
     local target_q_net
@@ -207,7 +215,7 @@ function nql:getQUpdate(args)
 
     -- Compute max_a Q(s_2, a).
     local q2_total = self.target_network:forward(s2):float():squeeze()
-    q2_max = torch.zeros(self.minibatch_size,self.num_heads)
+    q2_max = torch.zeros(num_samples,self.num_heads)
     for i=1,self.num_heads do
     	local q2_per_head = q2_total:narrow(2,(i-1)*self.n_actions+1,self.n_actions)
     	--print(torch.max(q2_per_head,2))
@@ -218,7 +226,7 @@ function nql:getQUpdate(args)
     -- q2_max = target_q_net:forward(s2):float():max(2)
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)
-    delta = r:clone():float():resize(self.minibatch_size,1)
+    delta = r:clone():float():resize(num_samples,1)
     delta = torch.repeatTensor(delta,1,self.num_heads)
     if self.rescale_r then
         delta:div(self.r_max)
@@ -239,9 +247,9 @@ function nql:getQUpdate(args)
         --print(self.clip_delta)
         delta[delta:le(-self.clip_delta)] = -self.clip_delta
     end
-    local targets = torch.zeros(self.minibatch_size, self.n_actions*self.num_heads):float()
+    local targets = torch.zeros(num_samples, self.n_actions*self.num_heads):float()
     for j = 1,self.num_heads do
-        for i=1,math.min(self.minibatch_size,a:size(1)) do
+        for i=1,math.min(num_samples,a:size(1)) do
             targets[i][(j-1)*self.n_actions+a[i]] = delta[i][j]
         end
     end
@@ -260,7 +268,7 @@ function nql:qLearnMinibatch()
     local s, a, r, s2, term = self.transitions:sample(self.minibatch_size)
 
     local targets, delta, q2_max = self:getQUpdate{s=s, a=a, r=r, s2=s2,
-        term=term, update_qmax=true}
+        term=term, update_qmax=true, testing = false}
 
     -- zero gradients of parameters
     self.dw:zero()
@@ -304,14 +312,14 @@ end
 
 function nql:compute_validation_statistics()
     local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
-        a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term}
+        a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term, testing=true}
 
     self.v_avg = self.q_max * q2_max:mean()
     self.tderr_avg = delta:clone():abs():mean()
 end
 
 
-function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
+function nql:perceive(reward, rawstate, terminal, testing)
     -- Preprocess state (will be set to nil if terminal)
     local state = self:preprocess(rawstate):float()
     local curState
@@ -346,9 +354,8 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Select action
     local actionIndex = 1
     if not terminal then
-        if not testing_ep then
-            -- actionIndex = self:eGreedy(curState, testing_ep)
-            actionIndex = self:greedy(curState)
+        if self.numSteps < self.learn_start then
+            actionIndex = torch.random(1, self.n_actions)
         else
             actionIndex = self:greedy(curState)
         end
@@ -359,7 +366,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
       self.target_network = self.network
     end
     --Do some Q-learning updates
-    print(self.numSteps)
+
     if self.numSteps > self.learn_start and not testing and
         self.numSteps % self.update_freq == 0 then
         for i = 1, self.n_replay do
@@ -369,6 +376,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
 
     if not testing then
         self.numSteps = self.numSteps + 1
+        print(self.numSteps)
     end
 
     self.lastState = state:clone()
@@ -387,10 +395,10 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
 end
 
 
-function nql:eGreedy(state, testing_ep)
-    self.ep = testing_ep or (self.ep_end +
-                math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
-                math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
+function nql:eGreedy(state, learn_start_flag)
+    -- self.ep = learn_start_flag or (self.ep_end +
+    --             math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
+    --             math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
     -- Epsilon greedy
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)
