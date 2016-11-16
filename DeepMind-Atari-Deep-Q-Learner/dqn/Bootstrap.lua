@@ -98,7 +98,7 @@ end
 
 function Bootstrap:accGradParameters(input, gradOutput, scale)
     -- rescale gradients
-    gradOutput:div(self.k)
+    -- gradOutput:div(self.k)
 
     -- accumulate grad parameters
     for i=1,self.k do
