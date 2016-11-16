@@ -106,9 +106,9 @@ function Bootstrap:accGradParameters(input, gradOutput, scale)
     end
 end
 
-function Bootstrap:__tostring__()
-  local str = 'nn.Bootstrap: '.. self.k .. ' heads \n'
-  str = str .. '  ' .. self.module:__tostring__()
+-- function Bootstrap:__tostring__()
+--   local str = 'nn.Bootstrap: '.. self.k .. ' heads \n'
+--   str = str .. '  ' .. self.module:__tostring__()
   
-  return str
-end
+--   return str
+-- end
