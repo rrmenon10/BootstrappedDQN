@@ -9,10 +9,12 @@ local Bootstrap, parent = torch.class('nn.Bootstrap', 'nn.Module')
 
 function Bootstrap:__init(mod, k, param_init)
     parent.__init(self)
+
+
     self.k = k
     self.active = {}
     self.active[1] = torch.random(self.k)
-    self.param_init = param_init
+    self.param_init = param_init or 0.1
     self.mod = mod:clearState()
     self.mods = {}
     self.mods_container = nn.Container()
@@ -20,9 +22,11 @@ function Bootstrap:__init(mod, k, param_init)
     for k=1,self.k do
         if self.param_init then
             -- By default nn.Linear multiplies with math.sqrt(3)
-            self.mods[k] = self.mod:clone():reset(self.param_init / math.sqrt(3))
+            self.mods[k] = self.mod:clone()
+            self.mods[k]:reset(self.param_init / math.sqrt(3))
         else    
-            self.mods[k] = self.mod:clone():reset()
+            self.mods[k] = self.mod:clone()
+            self.mods[k]:reset()
         end
         self.mods_container:add(self.mods[k])
     end
@@ -54,21 +58,22 @@ function Bootstrap:updateOutput(input)
     
     local testing = torch.load('test.dat')
     local terminal = torch.load('terminal.dat')
+    local i=1
     -- pick a random k
     if testing=="true" then
-        for i=1,self.k do
+        self.output = self.mods[1]:updateOutput(input):clone()
+        for i=2,self.k do
             self.output:add(self.mods[i]:updateOutput(input))
         end
         self.output:div(self.k)
     else
-        local i=1
         if terminal=="true" then
             -- reset active heads
             self.active = {}
             self.active[i] = torch.random(self.k)
         end
         -- print(self.active[i])
-        self.output:add(self.mods[self.active[i]]:updateOutput(input))
+        self.output = self.mods[self.active[i]]:updateOutput(input):clone()
         self.output:div(#self.active)
     end
     return self.output
@@ -79,10 +84,11 @@ function Bootstrap:updateGradInput(input, gradOutput)
     -- gradOutput:div(self.k)
 
     -- resize gradinput
-    self.gradInput:resizeAs(input):zero()
+    -- self.gradInput:resizeAs(input):zero()
 
     -- accumulate gradinputs
-    for i=1,self.k do
+    self.gradInput = self.mods[1]:updateGradInput(input, gradOutput):clone()
+    for i=2,self.k do
         self.gradInput:add(self.mods[i]:updateGradInput(input, gradOutput))
     end
     self.gradInput:div(self.k)
