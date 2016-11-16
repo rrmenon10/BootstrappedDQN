@@ -105,3 +105,10 @@ function Bootstrap:accGradParameters(input, gradOutput, scale)
         self.mods[i]:accGradParameters(input, gradOutput, scale)    
     end
 end
+
+function Bootstrap:__tostring__()
+  local str = 'nn.Bootstrap: '.. self.headNum .. ' heads \n'
+  str = str .. '  ' .. self.module:__tostring__()
+  
+  return str
+end
