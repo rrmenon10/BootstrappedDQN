@@ -38,7 +38,6 @@ cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
 
 cmd:text()
-torch.save('terminal.dat',"true")
 local opt = cmd:parse(arg)
 
 --- General setup.
@@ -74,8 +73,6 @@ print("Iteration ..", step)
 local win = nil
 while step < opt.steps do
     step = step + 1
-    local testing = "false"
-    torch.save('test.dat',testing)
     if step<learn_start then
         tip = 1
     else
@@ -85,11 +82,6 @@ while step < opt.steps do
     -- game over? get next game!
     if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
-        if terminal then
-            torch.save('terminal.dat',"true")
-        else
-            torch.save('terminal.dat',"false")
-        end
     else
         if opt.random_starts > 0 then
             screen, reward, terminal = game_env:nextRandomGame()
@@ -122,8 +114,6 @@ while step < opt.steps do
 
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
-            local testing = "true"
-            torch.save('test.dat',testing)
             local action_index = agent:perceive(reward, screen, terminal, true, 0)
 
             -- Play game in test mode (episodes don't end when losing a life)
