@@ -60,6 +60,7 @@ end
 
 function Bootstrap:updateGradInput(input, gradOutput)
     -- gradOutput:div(self.k)
+    self.gradInput:resizeAs(input):zero()
     -- self.gradInput = self.mods[1]:updateGradInput(input, gradOutput[1]):clone()
     for i=1,self.k do
         self.gradInput:add(self.mods[i]:updateGradInput(input, gradOutput[1]):div(self.k))
