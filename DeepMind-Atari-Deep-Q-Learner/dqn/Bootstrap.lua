@@ -11,7 +11,7 @@ function Bootstrap:__init(mod, k, param_init)
     parent.__init(self)
 
     self.k = k
-    self.active = 1 -- torch.random(self.k)
+    self.active = 1
     self.param_init = param_init or 0.1
     self.mod = mod:clearState()
     self.mods = {}
@@ -40,8 +40,7 @@ function Bootstrap:type(type, tensorCache)
     return parent.type(self, type, tensorCache)
 end
 
-function Bootstrap:updateOutput(input)
-    -- resize output    
+function Bootstrap:updateOutput(input) 
     if input:dim() == 1 then
         self.output:resize(self.mod.weight:size(1))
     elseif input:dim() == 2 then
@@ -49,8 +48,7 @@ function Bootstrap:updateOutput(input)
         self.output:resize(nframe, self.mod.weight:size(1))
     end
     self.output:zero()
-    
-    -- pick a random k
+
     for i=1,self.k do
         self.output:add(self.mods[i]:updateOutput(input))
     end
@@ -59,9 +57,7 @@ function Bootstrap:updateOutput(input)
 end
 
 function Bootstrap:updateGradInput(input, gradOutput)
-    -- gradOutput:div(self.k)
     self.gradInput:resizeAs(input):zero()
-    -- self.gradInput = self.mods[1]:updateGradInput(input, gradOutput[1]):clone()
     for i=1,self.k do
         self.gradInput:add(self.mods[i]:updateGradInput(input, gradOutput[1]):div(self.k))
     end
@@ -70,10 +66,6 @@ function Bootstrap:updateGradInput(input, gradOutput)
 end
 
 function Bootstrap:accGradParameters(input, gradOutput, scale)
-    -- rescale gradients
-    -- gradOutput:div(self.k)
-
-    -- accumulate grad parameters
     for i=1,self.k do
         self.mods[i]:accGradParameters(input, gradOutput, scale):div(self.k)    
     end
