@@ -17,7 +17,6 @@ function nql:__init(args)
     self.n_actions  = #self.actions
     self.verbose    = args.verbose
     self.best       = args.best
-    self.num_heads	= args.num_heads
 
     --- epsilon annealing
     self.ep_start   = args.ep or 1
@@ -64,9 +63,6 @@ function nql:__init(args)
     self.transition_params = args.transition_params or {}
 
     self.network    = args.network or self:createNetwork()
-
-    --Actve Head
-    -- self.active_head	= torch.random(1,self.num_heads)
 
     -- check whether there is a network file
     local network_function
@@ -205,12 +201,7 @@ function nql:getQUpdate(args)
     end
 
     -- Compute max_a Q(s_2, a).
-    local target = "true"
-    torch.save('target.dat',target)
     q2_max = target_q_net:forward(s2):float():max(2)
-    local q_all = self.network:forward(s):float()
-    target = "false"
-    torch.save('target.dat',target)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)
@@ -223,6 +214,7 @@ function nql:getQUpdate(args)
     delta:add(q2)
 
     -- q = Q(s,a)
+    local q_all = self.network:forward(s):float()
     q = torch.FloatTensor(q_all:size(1))
     for i=1,q_all:size(1) do
         q[i] = q_all[i][a[i]]
@@ -356,7 +348,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     if not testing then
         self.numSteps = self.numSteps + 1
     end
-    -- print(self.numSteps)
+
     self.lastState = state:clone()
     self.lastAction = actionIndex
     self.lastTerminal = terminal
@@ -374,9 +366,9 @@ end
 
 
 function nql:eGreedy(state, testing_ep)
-    self.ep = testing_ep --or (self.ep_end +
-                --math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
-                --math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
+    self.ep = testing_ep or (self.ep_end +
+                math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
+                math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
     -- Epsilon greedy
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)
