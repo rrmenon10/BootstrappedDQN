@@ -15,4 +15,3 @@ return function(args)
 
     return create_network(args)
 end
-
