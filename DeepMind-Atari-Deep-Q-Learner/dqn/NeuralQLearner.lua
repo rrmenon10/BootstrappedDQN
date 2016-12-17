@@ -17,6 +17,7 @@ function nql:__init(args)
     self.n_actions  = #self.actions
     self.verbose    = args.verbose
     self.best       = args.best
+    self.num_heads  = args.num_heads
 
     --- epsilon annealing
     self.ep_start   = args.ep or 1
@@ -148,6 +149,8 @@ function nql:__init(args)
     self.g  = self.dw:clone():fill(0)
     self.g2 = self.dw:clone():fill(0)
 
+    self.select_head = torch.random(self.num_heads)
+
     if self.target_q then
         self.target_network = self.network:clone()
     end
@@ -186,13 +189,25 @@ function nql:getQUpdate(args)
     r = args.r
     s2 = args.s2
     term = args.term
-
+    
     -- The order of calls to forward is a bit odd in order
     -- to avoid unnecessary calls (we only need 2).
 
     -- delta = r + (1-terminal) * gamma * max_a Q(s2, a) - Q(s, a)
     term = term:clone():float():mul(-1):add(1)
-
+    
+    mask = self.num_heads -- This portion can be changed to have the masking
+    -- Find a way for GradScale also in that case (Even without changing it will work)
+    self.active = {}
+    for i=1,mask do
+    	if mask < 10 then
+        	self.active[i] = torch.random(self.num_heads)
+        else
+        	self.active[i] = i
+        end
+    end
+    	
+    term = torch.repeatTensor(term, 1, #self.active):float()
     local target_q_net
     if self.target_q then
         target_q_net = self.target_network
@@ -201,23 +216,34 @@ function nql:getQUpdate(args)
     end
 
     -- Compute max_a Q(s_2, a).
-    q2_max = target_q_net:forward(s2):float():max(2)
+    -- q2_max = target_q_net:forward(s2):float():max(2)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
-    q2 = q2_max:clone():mul(self.discount):cmul(term)
+    -- q2 = q2_max:clone():mul(self.discount):cmul(term)
+    q2_tmp = target_q_net:forward(s2)
+    q2 = {}
+    for i=1,#self.active do
+    	q2[i] = q2_tmp[self.active[i]]:float():max(2):clone():mul(self.discount):cmul(term[{{},{i}}]) -- The whole thing behind term looks like its not needed now. Maybe it should be left just as it was before.
+    end
 
     delta = r:clone():float()
 
     if self.rescale_r then
         delta:div(self.r_max)
     end
-    delta:add(q2)
+    delta = torch.repeatTensor(delta,1,#self.active):float()
+    for i=1,#self.active do
+    	delta[{{},{i}}] = delta[{{},{i}}] + q2[i]
+    end
 
     -- q = Q(s,a)
-    local q_all = self.network:forward(s):float()
-    q = torch.FloatTensor(q_all:size(1))
-    for i=1,q_all:size(1) do
-        q[i] = q_all[i][a[i]]
+    local q_all = self.network:forward(s)
+    q = torch.FloatTensor(self.minibatch_size, #self.active)
+    for i=1,self.minibatch_size do
+        for j=1,#self.active do
+		local t = q[self.active[j]]:float()
+		q[i][j] = t[i][a[i]]
+	end
     end
     delta:add(-1, q)
 
@@ -226,9 +252,11 @@ function nql:getQUpdate(args)
         delta[delta:le(-self.clip_delta)] = -self.clip_delta
     end
 
-    local targets = torch.zeros(self.minibatch_size, self.n_actions):float()
+    local targets = torch.zeros(#self.active, self.minibatch_size, self.n_actions):float()
     for i=1,math.min(self.minibatch_size,a:size(1)) do
-        targets[i][a[i]] = delta[i]
+	for j=1,#self.active do
+        	targets[self.active[j]][i][a[i]] = delta[i][j]
+	end
     end
 
     if self.gpu >= 0 then targets = targets:cuda() end
@@ -332,7 +360,11 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Select action
     local actionIndex = 1
     if not terminal then
-        actionIndex = self:eGreedy(curState, testing_ep)
+	if self.numSteps > self.learn_start then
+		actionIndex = self:greedy(curState, testing, self.select_head)
+	else
+		actionIndex = self:eGreedy(curState, testing, testing_ep, self.select_head)
+    	end
     end
 
     self.transitions:add_recent_action(actionIndex)
@@ -360,12 +392,14 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     if not terminal then
         return actionIndex
     else
+	-- To make Thompson DQN, just put the statement below above the if condition and let the self.select_head get updated at every step
+	self.select_head = torch.random(self.num_heads)
         return 0
     end
 end
 
 
-function nql:eGreedy(state, testing_ep)
+function nql:eGreedy(state, testing, testing_ep, select_head)
     self.ep = testing_ep or (self.ep_end +
                 math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
                 math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
@@ -373,12 +407,12 @@ function nql:eGreedy(state, testing_ep)
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)
     else
-        return self:greedy(state)
+        return self:greedy(state, testing, select_head)
     end
 end
 
 
-function nql:greedy(state)
+function nql:greedy(state, testing, select_head)
     -- Turn single state into minibatch.  Needed for convolutional nets.
     if state:dim() == 2 then
         assert(false, 'Input must be at least 3D')
@@ -388,8 +422,17 @@ function nql:greedy(state)
     if self.gpu >= 0 then
         state = state:cuda()
     end
-
-    local q = self.network:forward(state):float():squeeze()
+    local q = torch.zeros(self.n_actions)
+    if testing then
+	local t = self.network:forward(state):float():squeeze()
+	for i=1,self.num_heads do
+		q = q + t[i][1]
+	end
+	q:div(self.num_heads)
+    else
+	local t = self.network:forward(state):float():squeeze()
+	q = t[select_head][1]
+    end
     local maxq = q[1]
     local besta = {1}
 
