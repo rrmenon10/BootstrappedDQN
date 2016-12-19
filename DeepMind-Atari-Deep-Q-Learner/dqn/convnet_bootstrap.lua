@@ -6,6 +6,7 @@ See LICENSE file for full terms of limited license.
 
 require "initenv"
 require "nn"
+require "GradScale"
 
 function create_network(args)
 
