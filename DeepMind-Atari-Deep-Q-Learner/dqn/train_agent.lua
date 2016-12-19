@@ -36,6 +36,7 @@ cmd:option('-verbose', 2,
            'the higher the level, the more information is printed to screen')
 cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
+cmd:option('-num_heads', 10, 'Bootstrap Heads')
 
 cmd:text()
 local opt = cmd:parse(arg)
