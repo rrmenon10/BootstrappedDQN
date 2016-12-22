@@ -200,7 +200,7 @@ function nql:getQUpdate(args)
     -- Find a way for GradScale also in that case (Even without changing it will work)
     self.active = {}
     for i=1,mask do
-    	if mask < 10 then
+    	if mask < self.num_heads then
         	self.active[i] = torch.random(self.num_heads)
         else
         	self.active[i] = i
@@ -241,9 +241,9 @@ function nql:getQUpdate(args)
     q = torch.FloatTensor(self.minibatch_size, #self.active)
     for i=1,self.minibatch_size do
         for j=1,#self.active do
-		local t = q[self.active[j]]:float()
-		q[i][j] = t[i][a[i]]
-	end
+		  local t = q[self.active[j]]:float()
+		  q[i][j] = t[i][a[i]]
+	    end
     end
     delta:add(-1, q)
 
@@ -254,9 +254,9 @@ function nql:getQUpdate(args)
 
     local targets = torch.zeros(#self.active, self.minibatch_size, self.n_actions):float()
     for i=1,math.min(self.minibatch_size,a:size(1)) do
-	for j=1,#self.active do
+	   for j=1,#self.active do
         	targets[self.active[j]][i][a[i]] = delta[i][j]
-	end
+	   end
     end
 
     if self.gpu >= 0 then targets = targets:cuda() end
@@ -363,7 +363,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
 	if self.numSteps > self.learn_start then
 		actionIndex = self:greedy(curState, testing, self.select_head)
 	else
-		actionIndex = self:eGreedy(curState, testing, testing_ep, self.select_head)
+		actionIndex = self:eGreedy(curState, testing, 1, self.select_head)
     	end
     end
 
@@ -400,9 +400,9 @@ end
 
 
 function nql:eGreedy(state, testing, testing_ep, select_head)
-    self.ep = testing_ep or (self.ep_end +
-                math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
-                math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
+    self.ep = testing_ep --or (self.ep_end +
+                --math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
+                --math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
     -- Epsilon greedy
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)
@@ -424,14 +424,14 @@ function nql:greedy(state, testing, select_head)
     end
     local q = torch.zeros(self.n_actions)
     if testing then
-	local t = self.network:forward(state):float():squeeze()
-	for i=1,self.num_heads do
-		q = q + t[i][1]
-	end
-	q:div(self.num_heads)
+	   local t = self.network:forward(state):float():squeeze()
+	   for i=1,self.num_heads do
+	       q = q + t[i][1]
+	   end
+	   q:div(self.num_heads)
     else
-	local t = self.network:forward(state):float():squeeze()
-	q = t[select_head][1]
+	   local t = self.network:forward(state):float():squeeze()
+	   q = t[select_head][1]
     end
     local maxq = q[1]
     local besta = {1}
