@@ -54,7 +54,7 @@ function create_network(args)
     local bootstrap_headsubset = nn.ParallelTable()
     for i=1,args.num_heads do
 	   head = nn.Sequential()
-	   head:add(nn.Linear(args.n_hid[1],args.num_actions))
+	   head:add(nn.Linear(args.n_hid[1],args.n_actions))
 	   bootstrap_headsubset:add(head)
     end
     bootstrap_headers:add(bootstrap_headsubset)

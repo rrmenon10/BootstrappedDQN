@@ -207,7 +207,7 @@ function nql:getQUpdate(args)
         end
     end
     	
-    term = torch.repeatTensor(term, 1, #self.active):float()
+    -- term = torch.repeatTensor(term, 1, #self.active):float()
     local target_q_net
     if self.target_q then
         target_q_net = self.target_network
@@ -223,7 +223,7 @@ function nql:getQUpdate(args)
     q2_tmp = target_q_net:forward(s2)
     q2 = {}
     for i=1,#self.active do
-    	q2[i] = q2_tmp[self.active[i]]:float():max(2):clone():mul(self.discount):cmul(term[{{},{i}}]) -- The whole thing behind term looks like its not needed now. Maybe it should be left just as it was before.
+    	q2[i] = q2_tmp[self.active[i]]:float():max(2):clone():mul(self.discount):cmul(term) -- The whole thing behind term looks like its not needed now. Maybe it should be left just as it was before.
     end
 
     delta = r:clone():float()
@@ -424,13 +424,13 @@ function nql:greedy(state, testing, select_head)
     end
     local q = torch.zeros(self.n_actions)
     if testing then
-	   local t = self.network:forward(state):float():squeeze()
+	   local t = self.network:forward(state)
 	   for i=1,self.num_heads do
 	       q = q + t[i][1]
 	   end
 	   q:div(self.num_heads)
     else
-	   local t = self.network:forward(state):float():squeeze()
+	   local t = self.network:forward(state)
 	   q = t[select_head][1]
     end
     local maxq = q[1]
