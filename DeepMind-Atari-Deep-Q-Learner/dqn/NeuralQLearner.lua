@@ -231,19 +231,20 @@ function nql:getQUpdate(args)
     if self.rescale_r then
         delta:div(self.r_max)
     end
-    delta = torch.repeatTensor(delta,1,#self.active):float()
+    delta = torch.repeatTensor(delta,#self.active,1):float()
+    delta = delta:transpose(1,2)
     for i=1,#self.active do
     	delta[{{},{i}}] = delta[{{},{i}}] + q2[i]
     end
 
     -- q = Q(s,a)
     local q_all = self.network:forward(s)
-    q = torch.FloatTensor(self.minibatch_size, #self.active)
+    q = torch.FloatTensor(self.minibatch_size, #self.active):fill(0)
     for i=1,self.minibatch_size do
         for j=1,#self.active do
-		  local t = q[self.active[j]]:float()
-		  q[i][j] = t[i][a[i]]
-	    end
+		      local t = q_all[self.active[j]]:float()
+		      q[i][j] = t[i][a[i]]
+	      end
     end
     delta:add(-1, q)
 
@@ -278,6 +279,7 @@ function nql:qLearnMinibatch()
     -- zero gradients of parameters
     self.dw:zero()
 
+    print(targets)
     -- get new gradient
     self.network:backward(s, targets)
 

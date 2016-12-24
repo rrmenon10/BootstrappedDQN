@@ -181,9 +181,9 @@ while step < opt.steps do
             agent.deltas, agent.tmp = nil, nil, nil, nil, nil, nil, nil, nil
 
         local filename = opt.name
-        if opt.save_versions > 0 then
-            filename = filename .. "_" .. math.floor(step / opt.save_versions)
-        end
+        -- if opt.save_versions > 0 then
+        --    filename = filename .. "_" .. math.floor(step / opt.save_versions)
+        -- end
         filename = filename
         torch.save(filename .. ".t7", {agent = agent,
                                 model = agent.network,
