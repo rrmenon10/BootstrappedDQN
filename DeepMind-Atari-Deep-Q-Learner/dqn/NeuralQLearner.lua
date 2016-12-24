@@ -279,7 +279,6 @@ function nql:qLearnMinibatch()
     -- zero gradients of parameters
     self.dw:zero()
 
-    print(targets)
     -- get new gradient
     self.network:backward(s, targets)
 
