@@ -6,7 +6,7 @@ See LICENSE file for full terms of limited license.
 
 require "initenv"
 require "nn"
-require "Replicate"
+require "Replicater"
 require "GradScale"
 
 function create_network(args)
@@ -49,7 +49,7 @@ function create_network(args)
     -- THIS PART FOR BOOTSTRAPPED DQN
 
     local bootstrap_headers = nn.Sequential()
-    bootstrap_headers:add(nn.Replicate(args.num_heads, args.num_heads))
+    bootstrap_headers:add(nn.Replicater(args.num_heads, args.num_heads))
     bootstrap_headers:add(nn.SplitTable(1))
     -- bootstrap_headers:add(nn.GradScale(1.0/(args.num_heads)))
     local bootstrap_headsubset = nn.ParallelTable()

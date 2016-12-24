@@ -11,7 +11,7 @@ end
 
 function GradScale:updateGradInput(input, gradOutput)
       self.gradInput = gradOutput*self.scale
-      -- print('GradScale:', torch.type(input), torch.type(self.gradInput ))
+      print('GradScale:', torch.type(input), torch.type(self.gradInput ))
       return self.gradInput
 end
 function GradScale:set_scale(new_scale)
