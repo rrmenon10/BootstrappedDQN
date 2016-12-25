@@ -196,7 +196,7 @@ function nql:getQUpdate(args)
     -- delta = r + (1-terminal) * gamma * max_a Q(s2, a) - Q(s, a)
     term = term:clone():float():mul(-1):add(1)
     
-    mask = self.num_heads -- This portion can be changed to have the masking
+    mask = self.num_heads-1 -- This portion can be changed to have the masking
     -- Find a way for GradScale also in that case (Even without changing it will work)
     self.active = {}
     for i=1,mask do
@@ -255,7 +255,7 @@ function nql:getQUpdate(args)
         delta[delta:le(-self.clip_delta)] = -self.clip_delta
     end
 
-    local targets = torch.zeros(#self.active, self.minibatch_size, self.n_actions):float()
+    local targets = torch.zeros(self.num_heads, self.minibatch_size, self.n_actions):float()
     for i=1,math.min(self.minibatch_size,a:size(1)) do
 	   for j=1,#self.active do
         	targets[self.active[j]][i][a[i]] = delta[i][j]
