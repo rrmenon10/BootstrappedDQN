@@ -6,6 +6,7 @@ function Replicater:__init(nf, heads, dim, ndim)
    self.dim = dim or 1
    self.ndim = ndim
    self.heads = heads
+   self.scale = heads
    assert(self.dim > 0, "Can only replicate across positive integer dimensions.")
 end
 
@@ -53,6 +54,11 @@ function Replicater:updateGradInput(input, gradOutput)
       sz[i+offset] = input:size(i)
    end
    local gradInput = self.gradInput:view(sz)
-   gradInput:sum(gradOutput, rdim):div(self.heads)
+   gradInput:sum(gradOutput, rdim):div(self.scale)
    return self.gradInput
+end
+
+function Replicater:set_scale(new_scale)
+   self.scale = new_scale
+   print(self.scale)
 end

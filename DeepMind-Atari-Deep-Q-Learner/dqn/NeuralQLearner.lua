@@ -206,7 +206,9 @@ function nql:getQUpdate(args)
         	self.active[i] = i
         end
     end
-    	
+    
+    self.network:get(11):get(1):set_scale(#self.active)
+
     -- term = torch.repeatTensor(term, 1, #self.active):float()
     local target_q_net
     if self.target_q then
