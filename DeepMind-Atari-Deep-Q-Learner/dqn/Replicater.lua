@@ -60,5 +60,4 @@ end
 
 function Replicater:set_scale(new_scale)
    self.scale = new_scale
-   print(self.scale)
 end

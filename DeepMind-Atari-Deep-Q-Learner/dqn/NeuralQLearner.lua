@@ -196,7 +196,7 @@ function nql:getQUpdate(args)
     -- delta = r + (1-terminal) * gamma * max_a Q(s2, a) - Q(s, a)
     term = term:clone():float():mul(-1):add(1)
     
-    mask = self.num_heads-1 -- This portion can be changed to have the masking
+    mask = self.num_heads -- This portion can be changed to have the masking
     -- Find a way for GradScale also in that case (Even without changing it will work)
     self.active = {}
     for i=1,mask do
@@ -217,18 +217,21 @@ function nql:getQUpdate(args)
         target_q_net = self.network
     end
 
+    delta = r:clone():float()
+
     -- Compute max_a Q(s_2, a).
     -- q2_max = target_q_net:forward(s2):float():max(2)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     -- q2 = q2_max:clone():mul(self.discount):cmul(term)
     q2_tmp = target_q_net:forward(s2)
+    q2_max = torch.Tensor(delta:size(1)):fill(0)
     q2 = {}
     for i=1,#self.active do
-    	q2[i] = q2_tmp[self.active[i]]:float():max(2):clone():mul(self.discount):cmul(term) -- The whole thing behind term looks like its not needed now. Maybe it should be left just as it was before.
+      local t = q2_tmp[self.active[i]]:float():max(2):div(self.num_heads)
+    	q2_max = q2_max + (t:transpose(1,2))[1]
+      q2[i] = q2_tmp[self.active[i]]:float():max(2):clone():mul(self.discount):cmul(term) -- The whole thing behind term looks like its not needed now. Maybe it should be left just as it was before.
     end
-
-    delta = r:clone():float()
 
     if self.rescale_r then
         delta:div(self.r_max)
@@ -241,13 +244,14 @@ function nql:getQUpdate(args)
 
     -- q = Q(s,a)
     local q_all = self.network:forward(s)
-    q = torch.FloatTensor(self.minibatch_size, #self.active):fill(0)
-    for i=1,self.minibatch_size do
+    q = torch.FloatTensor(delta:size(1), #self.active):fill(0)
+    for i=1,delta:size(1) do
         for j=1,#self.active do
 		      local t = q_all[self.active[j]]:float()
 		      q[i][j] = t[i][a[i]]
 	      end
     end
+
     delta:add(-1, q)
 
     if self.clip_delta then
@@ -255,7 +259,7 @@ function nql:getQUpdate(args)
         delta[delta:le(-self.clip_delta)] = -self.clip_delta
     end
 
-    local targets = torch.zeros(self.num_heads, self.minibatch_size, self.n_actions):float()
+    local targets = torch.zeros(self.num_heads, delta:size(1), self.n_actions):float()
     for i=1,math.min(self.minibatch_size,a:size(1)) do
 	   for j=1,#self.active do
         	targets[self.active[j]][i][a[i]] = delta[i][j]
@@ -425,10 +429,10 @@ function nql:greedy(state, testing, select_head)
     if self.gpu >= 0 then
         state = state:cuda()
     end
-    local q = torch.zeros(self.n_actions)
+    local q = torch.zeros(self.n_actions):cuda()
     if testing then
 	   local t = self.network:forward(state)
-	   for i=1,self.num_heads do
+     for i=1,self.num_heads do
 	       q = q + t[i][1]
 	   end
 	   q:div(self.num_heads)
@@ -493,6 +497,6 @@ end
 
 
 function nql:report()
-    print(get_weight_norms(self.network))
-    print(get_grad_norms(self.network))
+    -- print(get_weight_norms(self.network))
+    -- print(get_grad_norms(self.network))
 end
