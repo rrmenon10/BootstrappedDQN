@@ -18,6 +18,7 @@ function nql:__init(args)
     self.verbose    = args.verbose
     self.best       = args.best
     self.num_heads  = args.num_heads
+    self.mode       = args.mode
 
     --- epsilon annealing
     self.ep_start   = args.ep or 1
@@ -441,8 +442,34 @@ function nql:greedy(state, testing, select_head)
     besta = {}
     if testing then
 	   local t = self.network:forward(state)
-       for i=1,self.num_heads do
-	       q = t[i][1]
+       if self.mode=="maxVote" then
+           for i=1,self.num_heads do
+    	       q = t[i][1]
+               local ba = { 1 }
+               local maxq = q[1]
+
+               -- Evaluate all other actions (with random tie-breaking)
+               for a = 2, self.n_actions do
+                if q[a] > maxq then
+                    ba = { a }
+                    maxq = q[a]
+                elseif q[a] == maxq then
+                    ba[#ba+1] = a
+                end
+               end
+               self.bestq = maxq
+
+               local r = torch.random(1, #ba)
+
+               besta[#besta+1] = ba[r]
+    	   end
+           _, bestar = torch.max(torch.histc(torch.Tensor(besta),self.n_actions),1)
+           best = bestar[1]
+       elseif self.mode=="average" then
+           for i=1,self.num_heads do
+                q = q + t[i][1]
+           end  
+           q:div(self.num_heads)
            local ba = { 1 }
            local maxq = q[1]
 
@@ -456,13 +483,26 @@ function nql:greedy(state, testing, select_head)
             end
            end
            self.bestq = maxq
-
            local r = torch.random(1, #ba)
+           best = ba[r]
+       elseif self.mode=="random" then
+           q = t[torch.random(self.num_heads)][1]
+           local ba = { 1 }
+           local maxq = q[1]
 
-           besta[#besta+1] = ba[r]
-	   end
-       _, bestar = torch.max(torch.histc(torch.Tensor(besta),self.n_actions),1)
-       best = bestar[1]
+           -- Evaluate all other actions (with random tie-breaking)
+           for a = 2, self.n_actions do
+            if q[a] > maxq then
+                ba = { a }
+                maxq = q[a]
+            elseif q[a] == maxq then
+                ba[#ba+1] = a
+            end
+           end
+           self.bestq = maxq
+           local r = torch.random(1, #ba)
+           best = ba[r]
+        end
        -- q = t[torch.random(self.num_heads)][1]
 	   -- q:div(self.num_heads)
     else
