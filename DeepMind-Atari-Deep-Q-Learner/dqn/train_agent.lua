@@ -75,6 +75,7 @@ local win = nil
 while step < opt.steps do
     step = step + 1
     local action_index = agent:perceive(reward, screen, terminal)
+
     -- game over? get next game!
     if not terminal then
         screen, reward, terminal = game_env:step(game_actions[action_index], true)
@@ -87,7 +88,7 @@ while step < opt.steps do
     end
 
     -- display screen
-    --win = image.display({image=screen, win=win})
+    win = image.display({image=screen, win=win})
 
     if step % opt.prog_freq == 0 then
         assert(step==agent.numSteps, 'trainer step: ' .. step ..
@@ -111,12 +112,16 @@ while step < opt.steps do
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
             local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
+            
+            if estep == 1 then
+                action_index = 2
+            end
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])
 
             -- display screen
-            --win = image.display({image=screen, win=win})
+            win = image.display({image=screen, win=win})
 
             if estep%1000 == 0 then collectgarbage() end
 
