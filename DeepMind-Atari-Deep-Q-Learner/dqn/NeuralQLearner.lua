@@ -225,7 +225,11 @@ function nql:getQUpdate(args)
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     -- q2 = q2_max:clone():mul(self.discount):cmul(term)
-    _, a_tmp = self.network:forward(s2):float():max(2)
+    a_tmp = {}
+    local tmp = self.network:forward(s2)
+    for i=1,#self.active do
+	_, a_tmp[i] = tmp[i]:float():max(2)
+    end
     q2_tmp = target_q_net:forward(s2)
     q2_max = torch.Tensor(delta:size(1)):fill(0)
     q2 = {}
@@ -233,7 +237,7 @@ function nql:getQUpdate(args)
       local t = q2_tmp[self.active[i]]:float():div(self.num_heads)
       q2_max = torch.Tensor(delta:size(1)):fill(0)
       for j=1,t:size(1) do
-    		q2_max[j] = q2_max[j] + t[{{j},{a_tmp[j][1]}}][1]
+    		q2_max[j] = q2_max[j] + t[{{j},{a_tmp[i][j][1]}}][1]
       end
       local t = q2_max:mul(self.num_heads)
       q2[i] = t:clone():mul(self.discount):cmul(term) -- The whole thing behind term looks like its not needed now. Maybe it should be left just as it was before.
