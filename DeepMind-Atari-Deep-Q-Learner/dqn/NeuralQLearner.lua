@@ -145,6 +145,7 @@ function nql:__init(args)
     self.dw:zero()
 
     self.deltas = self.dw:clone():fill(0)
+    self.perturbations  = torch.zeros(self.dw:size())
 
     self.tmp= self.dw:clone():fill(0)
     self.g  = self.dw:clone():fill(0)
@@ -319,7 +320,9 @@ function nql:qLearnMinibatch()
 
     -- accumulate update
     self.deltas:mul(0):addcdiv(self.lr, self.dw, self.tmp)
-    self.w:add(self.deltas)
+    self.perturbations = torch.normal(torch.rand(self.perturbations:size())):mul(0.00001)
+
+    self.w:add(self.deltas:add(self.perturbations()))
 end
 
 
@@ -377,7 +380,11 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Select action
     local actionIndex = 1
     if not terminal then
-	actionIndex = self:eGreedy(curState, testing, testing_ep, self.select_head)
+	if self.numSteps > self.learn_start then
+		actionIndex = self:greedy(curState, testing, self.select_head)
+	else
+		actionIndex = self:eGreedy(curState, testing, 1, self.select_head)
+	end
     end
 
     self.transitions:add_recent_action(actionIndex)
@@ -413,9 +420,9 @@ end
 
 
 function nql:eGreedy(state, testing, testing_ep, select_head)
-    self.ep = testing_ep or (self.ep_end +
-                math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
-                math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
+    self.ep = testing_ep -- or (self.ep_end +
+                -- math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
+                -- math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
     -- Epsilon greedy
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)
