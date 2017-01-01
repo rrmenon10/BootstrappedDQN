@@ -46,20 +46,32 @@ function create_network(args)
     net:add(nn.Linear(nel, args.n_hid[1]))
     net:add(args.nl())
 
-    -- THIS PART FOR BOOTSTRAPPED DQN
+    net_sub = nn.Sequential()
 
-    local bootstrap_headers = nn.Sequential()
-    bootstrap_headers:add(nn.Replicater(args.num_heads, args.num_heads))
-    bootstrap_headers:add(nn.SplitTable(1))
-    -- bootstrap_headers:add(nn.GradScale(1.0/(args.num_heads)))
-    local bootstrap_headsubset = nn.ParallelTable()
-    for i=1,args.num_heads do
-	   head = nn.Sequential()
-	   head:add(nn.Linear(args.n_hid[1],args.n_actions))
-	   bootstrap_headsubset:add(head)
-    end
-    bootstrap_headers:add(bootstrap_headsubset)
-    net:add(bootstrap_headers)	
+        net_sub:add(nn.Replicate(2))
+        net_sub:add(nn.SplitTable(1))
+
+        net_subset = nn.ParallelTable()
+
+            -- THIS PART FOR BOOTSTRAPPED DQN
+
+            local bootstrap_headers = nn.Sequential()
+            bootstrap_headers:add(nn.Replicater(args.num_heads, args.num_heads))
+            bootstrap_headers:add(nn.SplitTable(1))
+            -- bootstrap_headers:add(nn.GradScale(1.0/(args.num_heads)))
+            local bootstrap_headsubset = nn.ParallelTable()
+            for i=1,args.num_heads do
+        	   head = nn.Sequential()
+        	   head:add(nn.Linear(args.n_hid[1],args.n_actions))
+        	   bootstrap_headsubset:add(head)
+            end
+            bootstrap_headers:add(bootstrap_headsubset)
+            net_subset:add(bootstrap_headers)	
+
+            -- THIS PART FOR ATTENTION
+
+            local bootstrap_attention = nn.Sequential()
+            
 
     if args.gpu >=0 then
         net:cuda()
