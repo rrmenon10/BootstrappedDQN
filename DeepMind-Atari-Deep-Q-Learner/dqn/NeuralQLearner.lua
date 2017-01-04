@@ -322,7 +322,7 @@ function nql:qLearnMinibatch()
     self.deltas:mul(0):addcdiv(self.lr, self.dw, self.tmp)
     self.perturbations = torch.normal(torch.rand(self.perturbations:size())):mul(0.00001)
 
-    self.w:add(self.deltas:add(self.perturbations()))
+    self.w:add(self.deltas:add(self.perturbations))
 end
 
 
