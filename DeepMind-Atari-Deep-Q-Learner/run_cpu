@@ -6,7 +6,7 @@ fi
 ENV=$1
 FRAMEWORK="alewrap"
 
-game_path=$PWD"/roms/"
+game_path=$PWD"/ale_roms/"
 env_params="useRGB=true"
 agent="NeuralQLearner"
 n_replay=1
@@ -29,12 +29,13 @@ agent_name=$agent_type"_"$1"_FULL_Y"
 state_dim=7056
 ncols=1
 num_heads=10
-agent_params="lr="$lr",ep=1,ep_end="$eps_end",ep_endt="$eps_endt",discount="$discount",hist_len=4,learn_start="$learn_start",replay_memory="$replay_memory",update_freq="$update_freq",n_replay="$n_replay",network="$netfile",preproc="$preproc_net",state_dim="$state_dim",minibatch_size=32,rescale_r=1,ncols="$ncols",bufferSize=512,valid_size=500,target_q=10000,clip_delta=1,min_reward=-1,max_reward=1,num_heads="$num_heads
+mode="maxVote"
+agent_params="lr="$lr",ep=1,ep_end="$eps_end",ep_endt="$eps_endt",discount="$discount",hist_len=4,learn_start="$learn_start",replay_memory="$replay_memory",update_freq="$update_freq",n_replay="$n_replay",network="$netfile",preproc="$preproc_net",state_dim="$state_dim",minibatch_size=32,rescale_r=1,ncols="$ncols",bufferSize=512,valid_size=500,target_q=10000,clip_delta=1,min_reward=-1,max_reward=1,num_heads="$num_heads",mode="$mode
 steps=5000
 eval_freq=1010
-eval_steps=125000
+eval_steps=1250
 prog_freq=1000
-save_freq=125000
+save_freq=1250
 save_versions=$save_freq
 gpu=-1
 random_starts=30

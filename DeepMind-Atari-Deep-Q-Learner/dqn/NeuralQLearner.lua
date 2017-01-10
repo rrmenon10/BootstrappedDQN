@@ -18,7 +18,7 @@ function nql:__init(args)
     self.verbose    = args.verbose
     self.best       = args.best
     self.num_heads  = args.num_heads
-    self.mode       = args.mode
+    self.mode       = args.mode or "maxVote"
 
     --- epsilon annealing
     self.ep_start   = args.ep or 1
@@ -151,6 +151,7 @@ function nql:__init(args)
     self.g2 = self.dw:clone():fill(0)
 
     self.select_head = torch.random(self.num_heads)
+    self.best_performing_head = self.select_head
 
     if self.target_q then
         self.target_network = self.network:clone()
@@ -226,9 +227,14 @@ function nql:getQUpdate(args)
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     -- q2 = q2_max:clone():mul(self.discount):cmul(term)
     a_tmp = {}
+    local grad_mask = torch.rand(#self.active)
     local tmp = self.network:forward(s2)
     for i=1,#self.active do
-	_, a_tmp[i] = tmp[i]:float():max(2)
+        local target_head = self.active[i]
+        if grad_mask[i]>0.5 then
+            target_head = self.best_performing_head
+        end
+	    _, a_tmp[i] = tmp[target_head]:float():max(2)
     end
     q2_tmp = target_q_net:forward(s2)
     q2_max = torch.Tensor(delta:size(1)):fill(0)
@@ -291,6 +297,9 @@ function nql:qLearnMinibatch()
 
     local targets, delta, q2_max = self:getQUpdate{s=s, a=a, r=r, s2=s2,
         term=term, update_qmax=true}
+
+    _, temp = torch.max(torch.sum(delta,1),2)
+    self.best_performing_head = temp[1][1]
 
     -- zero gradients of parameters
     self.dw:zero()
