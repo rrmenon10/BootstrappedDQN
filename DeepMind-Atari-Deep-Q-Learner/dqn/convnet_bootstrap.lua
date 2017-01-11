@@ -41,25 +41,35 @@ function create_network(args)
     -- reshape all feature planes into a vector per example
     net:add(nn.Reshape(nel))
 
-    -- fully connected layer
-    -- net:add(nn.Linear(nel, args.n_hid[1]))
-    -- net:add(args.nl())
-
     -- THIS PART FOR BOOTSTRAPPED DQN
 
-    	local bootstrap_headers = nn.Sequential()
-    	bootstrap_headers:add(nn.Replicater(args.num_heads, args.num_heads))
-    	bootstrap_headers:add(nn.SplitTable(1))
-    		local bootstrap_headsubset = nn.ParallelTable()
-    		for i=1,args.num_heads do
-	   		head = nn.Sequential()
-	   		head:add(nn.Linear(nel, args.n_hid[1]))
-	   		head:add(args.nl())
-	   		head:add(nn.Linear(args.n_hid[1],args.n_actions))
-	   		bootstrap_headsubset:add(head)
-    		end
-    		bootstrap_headers:add(bootstrap_headsubset)
-    	net:add(bootstrap_headers)	
+        local fork_net = nn.Sequential()
+            fork_net:add(nn.Replicate(2))
+            fork_net:add(nn.SplitTable(1))
+            local split_net = nn.ParallelTable()
+
+            	local bootstrap_headers = nn.Sequential()
+                	bootstrap_headers:add(nn.Replicater(args.num_heads, args.num_heads))
+                	bootstrap_headers:add(nn.SplitTable(1))
+                	local bootstrap_headsubset = nn.ParallelTable()
+                		for i=1,args.num_heads do
+            	   		head = nn.Sequential()
+            	   		head:add(nn.Linear(nel, args.n_hid[1]))
+            	   		head:add(args.nl())
+            	   		head:add(nn.Linear(args.n_hid[1],args.n_actions))
+            	   		bootstrap_headsubset:add(head)
+                		end
+                	bootstrap_headers:add(bootstrap_headsubset)
+                split_net:add(bootstrap_headers)
+
+                local attention = nn.Sequential()
+                    attention:add(nn.Linear(nel, args.n_hid[1]))
+                    attention:add(nn.Linear(args.n_hid[1], args.num_heads))
+                split_net:add(attention)
+
+            fork_net:add(split_net)
+
+    	net:add(fork_net)	
 
     if args.gpu >=0 then
         net:cuda()
