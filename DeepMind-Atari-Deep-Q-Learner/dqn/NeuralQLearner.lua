@@ -252,11 +252,7 @@ function nql:getQUpdate(args)
     delta = torch.repeatTensor(delta,#self.active,1):float()
     delta = delta:transpose(1,2)
     for i=1,#self.active do
-        if self.att_mode == "norm" then
-    	   delta[{{},{i}}] = delta[{{},{i}}] + q2[i]
-        elseif self.att_mode == "att" then
-           delta[{{},{i}}] = delta[{{},{i}}] + q2[i]:cmul(att2[{{},{i}}]) 
-        end
+        delta[{{},{i}}] = delta[{{},{i}}] + q2[i]
     end
 
     -- q = Q(s,a)
@@ -269,9 +265,6 @@ function nql:getQUpdate(args)
 		      local t = q_all[self.active[j]]:float()
 		      q[i][j] = t[i][a[i]]
 	      end
-    end
-    if self.att_mode=="att" then
-        q:cmul(att_all)
     end
 
     delta:add(-1, q)
@@ -295,7 +288,9 @@ function nql:getQUpdate(args)
 
     if self.att_mode == "norm" then
         targets_final = {targets, delta:clone():zero()}
-    elseif self.att_mode == "att"
+    elseif self.att_mode == "att" then
+        delta:cdiv(delta:sum(2):expandAs(delta)):mul(-1):add(1)
+        delta:add(att_all:mul(-1))
         targets_final = {targets:clone():zero(), delta}
     end
 
@@ -307,15 +302,15 @@ function nql:qLearnMinibatch()
     -- Perform a minibatch Q-learning update:
     -- w += alpha * (r + gamma max Q(s2,a2) - Q(s,a)) * dQ(s,a)/dw
     assert(self.transitions:size() > self.minibatch_size)
+    local s, a, r, s2, term    
 
     if self.att_mode == "norm" then
-        local s, a, r, s2, term = self.transitions:sample(self.minibatch_size)
+        s, a, r, s2, term = self.transitions:sample(self.minibatch_size)
     else
-        local s, a, r, s2, term = self.transitions:sample(10000)
+        s, a, r, s2, term = self.transitions:sample(10000)
     end
 
-    local targets, delta, q2_max = self:getQUpdate{s=s, a=a, r=r, s2=s2,
-        term=term, update_qmax=true}
+    local targets, delta, q2_max = self:getQUpdate{s=s, a=a, r=r, s2=s2, term=term, update_qmax=true}
 
     -- zero gradients of parameters
     self.dw:zero()
@@ -419,6 +414,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
         for i = 1, self.n_replay do
             self:qLearnMinibatch()
         end
+    end
 
     if not testing then
         self.numSteps = self.numSteps + 1
@@ -478,10 +474,10 @@ function nql:greedy(state, testing, select_head)
     if testing then
 	   local g = self.network:forward(state)
        local t = g[1]
-       local att = g[2]
+       local att = g[2]:transpose(1,2)
        if self.mode=="maxVote" then
            for i=1,self.num_heads do
-    	       q = t[i][1]:mul(att[i])
+    	       q = t[i][1]:mul(att[i][1])
                local ba = { 1 }
                local maxq = q[1]
 
@@ -504,7 +500,7 @@ function nql:greedy(state, testing, select_head)
            best = bestar[1]
        elseif self.mode=="average" then
            for i=1,self.num_heads do
-                q = q + t[i][1]:mul(att[i])
+                q = q + t[i][1]:mul(att[i][1])
            end  
            q:div(self.num_heads)
            local ba = { 1 }
@@ -524,7 +520,7 @@ function nql:greedy(state, testing, select_head)
            best = ba[r]
        elseif self.mode=="random" then
            random_head = torch.random(self.num_heads) --select random head
-           q = t[random_head][1]:mul(att[random_head])
+           q = t[random_head][1]:mul(att[random_head][1])
            local ba = { 1 }
            local maxq = q[1]
 
@@ -547,7 +543,7 @@ function nql:greedy(state, testing, select_head)
 	   local g = self.network:forward(state)
        local t = g[1]
        local att = g[2]
-	   q = t[select_head][1]:mul(att[select_head])
+	   q = t[select_head][1]:mul(att[select_head][1])
        local maxq = q[1]
        local besta = {1}
 
