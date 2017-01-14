@@ -74,6 +74,7 @@ local screen, reward, terminal = game_env:getState()
 print("Iteration ..", step)
 local win = nil
 while step < opt.steps do
+    print(step)
     step = step + 1
     local action_index = agent:perceive(reward, screen, terminal)
 
@@ -122,7 +123,7 @@ while step < opt.steps do
             screen, reward, terminal = game_env:step(game_actions[action_index])
 
             -- display screen
-            -- win = image.display({image=screen, win=win})
+            win = image.display({image=screen, win=win})
 
             if estep%1000 == 0 then collectgarbage() end
 

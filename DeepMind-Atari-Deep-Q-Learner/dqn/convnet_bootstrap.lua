@@ -7,6 +7,7 @@ See LICENSE file for full terms of limited license.
 require "initenv"
 require "nn"
 require "Replicater"
+require "GradScale"
 
 function create_network(args)
 
@@ -63,6 +64,7 @@ function create_network(args)
                 split_net:add(bootstrap_headers)
 
                 local attention = nn.Sequential()
+                    attention:add(nn.GradScale(0.0))
                     attention:add(nn.Linear(nel, args.n_hid[1]))
                     attention:add(nn.Linear(args.n_hid[1], args.num_heads))
                 split_net:add(attention)

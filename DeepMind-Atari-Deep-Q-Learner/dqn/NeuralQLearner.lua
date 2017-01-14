@@ -307,6 +307,7 @@ function nql:qLearnMinibatch()
     if self.att_mode == "norm" then
         s, a, r, s2, term = self.transitions:sample(self.minibatch_size)
     else
+        print("attention")
         s, a, r, s2, term = self.transitions:sample(10000)
     end
 
@@ -543,6 +544,8 @@ function nql:greedy(state, testing, select_head)
 	   local g = self.network:forward(state)
        local t = g[1]
        local att = g[2]
+       print(t[select_head][1])
+       print(att[select_head][1])
 	   q = t[select_head][1]:mul(att[select_head][1])
        local maxq = q[1]
        local besta = {1}
