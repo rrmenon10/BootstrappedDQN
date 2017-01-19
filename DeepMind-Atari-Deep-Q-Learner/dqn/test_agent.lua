@@ -54,6 +54,8 @@ end
 
 -- file names from command line
 local gif_filename = opt.gif_file
+local csv_filename = opt.csv_file		
+print(gif_filename, csv_filename)
 
 -- start a new game
 local screen, reward, terminal = game_env:newGame()
@@ -74,6 +76,10 @@ im:gifAnimAdd(gif_filename, false, 0, 0, 7, gd.DISPOSAL_NONE)
 local previm = im
 local win = image.display({image=screen})
 
+-- open CSV file for writing and write header		
+local csv_file = assert(io.open(csv_filename, "w"))		
+csv_file:write('action;max_qvalue;reward;terminal\n')
+
 print("Started playing...")
 
 -- play one episode (game)
@@ -82,7 +88,7 @@ while not terminal do
     agent.bestq = 0
     
     -- choose the best action
-    local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
+    local action_index = agent:perceive(reward, screen, terminal, true, 0)
 
     -- play game in test mode (episodes don't end when losing a life)
     screen, reward, terminal = game_env:step(game_actions[action_index], false)
@@ -103,9 +109,12 @@ while not terminal do
     -- remember previous screen for optimal compression
     previm = im
 
+    -- write best Q-value for state to CSV file
+    csv_file:write(action_index .. ';' .. agent.bestq .. ';' .. reward .. ';' .. tostring(terminal) .. '\n')
 end
 
 -- end GIF animation and close CSV file
 gd.gifAnimEnd(gif_filename)
+csv_file:close()
 
 print("Finished playing, close window to exit!")

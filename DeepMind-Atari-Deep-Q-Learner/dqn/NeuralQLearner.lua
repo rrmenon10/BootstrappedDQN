@@ -65,7 +65,10 @@ function nql:__init(args)
     self.network        = args.network or self:createNetwork()
 
     self.num_heads      = args.num_heads
-    self.select_head = torch.random(self.num_heads)
+    self.select_head 	= torch.random(self.num_heads)
+    self.test_mode		= args.test_mode
+
+    print(self.test_mode)
 
     -- check whether there is a network file
     local network_function
@@ -223,11 +226,17 @@ function nql:getQUpdate(args)
     delta = r:clone():float()
 
     -- Compute max_a Q(s_2, a).
+    local q2_tmp = self.network:forward(s2)
     local q2_all = target_q_net:forward(s2)
     q2_max = torch.FloatTensor(self.num_heads,num_samples)
+    local a2 = {}
 
     for i=1,self.active:size(1) do
-        q2_max[self.active[i]] = q2_all[self.active[i]]:max(2)
+        _,a2 = q2_tmp[self.active[i]]:max(2)
+        for j=1,num_samples do
+        	local a2_tmp = a2[j][1]
+        	q2_max[self.active[i]][j] = q2_all[self.active[i]][j][a2_tmp]
+        end
     end
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
@@ -364,7 +373,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Select action
     local actionIndex = 1
     if not terminal then
-        actionIndex = self:eGreedy(curState, testing_ep)
+        actionIndex = self:eGreedy(curState, testing, testing_ep)
     end
 
     self.transitions:add_recent_action(actionIndex)
@@ -398,7 +407,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
 end
 
 
-function nql:eGreedy(state, testing_ep)
+function nql:eGreedy(state, testing, testing_ep)
     self.ep = testing_ep or (self.ep_end +
                 math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
                 math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
@@ -406,49 +415,114 @@ function nql:eGreedy(state, testing_ep)
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)
     else
-        return self:greedy(state)
+        return self:greedy(state, testing)
     end
 end
 
 
-function nql:greedy(state)
+function nql:greedy(state, testing)
     -- Turn single state into minibatch.  Needed for convolutional nets.
     if state:dim() == 2 then
         assert(false, 'Input must be at least 3D')
         state = state:resize(1, state:size(1), state:size(2))
     end
 
+    local q = torch.zeros(self.n_actions):float()
+
     if self.gpu >= 0 then
         state = state:cuda()
+        q = q:cuda()
     end
+    besta = {}
+    if testing then
+	   local t = self.network:forward(state)
+       if self.mode=="maxVote" then
+           for i=1,self.num_heads do
+    	       q = t[i][1]
+               local ba = { 1 }
+               local maxq = q[1]
 
-    local all_heads_out = self.network:forward(state)
-    q = all_heads_out[self.select_head][1]
-    -- print("Debug")
-    -- for k, v in pairs( all_heads_out ) do
-    --     print(k, v)
-    -- end
-    -- print(self.select_head)
-    -- print(q)
-    local maxq = q[1]
-    local besta = {1}
+               -- Evaluate all other actions (with random tie-breaking)
+               for a = 2, self.n_actions do
+                if q[a] > maxq then
+                    ba = { a }
+                    maxq = q[a]
+                elseif q[a] == maxq then
+                    ba[#ba+1] = a
+                end
+               end
+               self.bestq = maxq
 
-    -- Evaluate all other actions (with random tie-breaking)
-    for a = 2, self.n_actions do
+               local r = torch.random(1, #ba)
+
+               besta[#besta+1] = ba[r]
+    	   end
+           _, bestar = torch.max(torch.histc(torch.Tensor(besta),self.n_actions),1)
+           best = bestar[1]
+       elseif self.mode=="average" then
+           for i=1,self.num_heads do
+                q = q + t[i][1]
+           end  
+           q:div(self.num_heads)
+           local ba = { 1 }
+           local maxq = q[1]
+
+           -- Evaluate all other actions (with random tie-breaking)
+           for a = 2, self.n_actions do
+            if q[a] > maxq then
+                ba = { a }
+                maxq = q[a]
+            elseif q[a] == maxq then
+                ba[#ba+1] = a
+            end
+           end
+           self.bestq = maxq
+           local r = torch.random(1, #ba)
+           best = ba[r]
+       elseif self.mode=="random" then
+           q = t[torch.random(self.num_heads)][1]
+           local ba = { 1 }
+           local maxq = q[1]
+
+           -- Evaluate all other actions (with random tie-breaking)
+           for a = 2, self.n_actions do
+            if q[a] > maxq then
+                ba = { a }
+                maxq = q[a]
+            elseif q[a] == maxq then
+                ba[#ba+1] = a
+            end
+           end
+           self.bestq = maxq
+           local r = torch.random(1, #ba)
+           best = ba[r]
+        end
+       -- q = t[torch.random(self.num_heads)][1]
+	   -- q:div(self.num_heads)
+    else
+	   local t = self.network:forward(state)
+	   q = t[self.select_head][1]
+       local maxq = q[1]
+       local besta = {1}
+
+       -- Evaluate all other actions (with random tie-breaking)
+       for a = 2, self.n_actions do
         if q[a] > maxq then
             besta = { a }
             maxq = q[a]
         elseif q[a] == maxq then
             besta[#besta+1] = a
         end
+       end
+       self.bestq = maxq
+
+       local r = torch.random(1, #besta)
+       best = besta[r]
     end
-    self.bestq = maxq
 
-    local r = torch.random(1, #besta)
+    self.lastAction = best
 
-    self.lastAction = besta[r]
-
-    return besta[r]
+    return best
 end
 
 
