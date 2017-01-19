@@ -1,6 +1,5 @@
 --[[
 Copyright (c) 2014 Google Inc.
-
 See LICENSE file for full terms of limited license.
 ]]
 
@@ -25,6 +24,7 @@ cmd:option('-pool_frms', '',
 cmd:option('-actrep', 1, 'how many times to repeat action')
 cmd:option('-random_starts', 0, 'play action 0 between 1 and random_starts ' ..
            'number of times at the start of each training episode')
+
 cmd:option('-name', '', 'filename used for saving network and training history')
 cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-agent', '', 'name of agent file to use')
@@ -54,8 +54,6 @@ end
 
 -- file names from command line
 local gif_filename = opt.gif_file
-local csv_filename = opt.csv_file
-print(gif_filename, csv_filename)
 
 -- start a new game
 local screen, reward, terminal = game_env:newGame()
@@ -74,11 +72,7 @@ im:gifAnimAdd(gif_filename, false, 0, 0, 7, gd.DISPOSAL_NONE)
 
 -- remember the image and show it first
 local previm = im
---local win = image.display({image=screen})
-
--- open CSV file for writing and write header
-local csv_file = assert(io.open(csv_filename, "w"))
-csv_file:write('action;max_qvalue;reward;terminal\n')
+local win = image.display({image=screen})
 
 print("Started playing...")
 
@@ -88,13 +82,13 @@ while not terminal do
     agent.bestq = 0
     
     -- choose the best action
-    local action_index = agent:perceive(reward, screen, terminal, true, 0)
+    local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
 
     -- play game in test mode (episodes don't end when losing a life)
     screen, reward, terminal = game_env:step(game_actions[action_index], false)
 
     -- display screen
-    --image.display({image=screen, win=win})
+    image.display({image=screen, win=win})
 
     -- create gd image from tensor
     jpg = image.compressJPG(screen:squeeze(), 100)
@@ -109,13 +103,9 @@ while not terminal do
     -- remember previous screen for optimal compression
     previm = im
 
-    -- write best Q-value for state to CSV file
-    csv_file:write(action_index .. ';' .. agent.bestq .. ';' .. reward .. ';' .. tostring(terminal) .. '\n')
 end
 
 -- end GIF animation and close CSV file
 gd.gifAnimEnd(gif_filename)
-csv_file:close()
 
 print("Finished playing, close window to exit!")
-

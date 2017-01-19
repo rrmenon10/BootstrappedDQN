@@ -5,9 +5,6 @@ See LICENSE file for full terms of limited license.
 ]]
 
 require "initenv"
-require "nn"
-require "Thompson"
-require "Bootstrap"
 
 function create_network(args)
 
@@ -45,10 +42,17 @@ function create_network(args)
     -- fully connected layer
     net:add(nn.Linear(nel, args.n_hid[1]))
     net:add(args.nl())
+    local last_layer_size = args.n_hid[1]
 
-    -- THIS PART FOR BOOTSTRAPPED DQN
+    for i=1,(#args.n_hid-1) do
+        -- add Linear layer
+        last_layer_size = args.n_hid[i+1]
+        net:add(nn.Linear(args.n_hid[i], last_layer_size))
+        net:add(args.nl())
+    end
 
-    net:add(nn.Bootstrap(nn.Linear(args.n_hid[1],args.n_actions),1))
+    -- add the last fully connected layer (to actions)
+    net:add(nn.Linear(last_layer_size, args.n_actions))
 
     if args.gpu >=0 then
         net:cuda()

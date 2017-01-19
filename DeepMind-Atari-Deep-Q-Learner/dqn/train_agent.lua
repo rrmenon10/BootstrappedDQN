@@ -1,3 +1,9 @@
+--[[
+Copyright (c) 2014 Google Inc.
+
+See LICENSE file for full terms of limited license.
+]]
+
 if not dqn then
     require "initenv"
 end
@@ -17,6 +23,7 @@ cmd:option('-pool_frms', '',
 cmd:option('-actrep', 1, 'how many times to repeat action')
 cmd:option('-random_starts', 0, 'play action 0 between 1 and random_starts ' ..
            'number of times at the start of each training episode')
+
 cmd:option('-name', '', 'filename used for saving network and training history')
 cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-agent', '', 'name of agent file to use')
@@ -36,10 +43,9 @@ cmd:option('-verbose', 2,
            'the higher the level, the more information is printed to screen')
 cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
-cmd:option('-num_heads', 10, 'Bootstrap Heads')
-cmd:option('-mode', 'random', 'Testing output mode')
 
 cmd:text()
+
 local opt = cmd:parse(arg)
 
 --- General setup.
@@ -89,7 +95,7 @@ while step < opt.steps do
     end
 
     -- display screen
-    -- win = image.display({image=screen, win=win})
+    win = image.display({image=screen, win=win})
 
     if step % opt.prog_freq == 0 then
         assert(step==agent.numSteps, 'trainer step: ' .. step ..
@@ -113,16 +119,12 @@ while step < opt.steps do
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
             local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
-            
-            if estep == 1 then
-                action_index = 2
-            end
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])
 
             -- display screen
-            -- win = image.display({image=screen, win=win})
+            win = image.display({image=screen, win=win})
 
             if estep%1000 == 0 then collectgarbage() end
 
@@ -187,9 +189,9 @@ while step < opt.steps do
             agent.deltas, agent.tmp = nil, nil, nil, nil, nil, nil, nil, nil
 
         local filename = opt.name
-        -- if opt.save_versions > 0 then
-        --    filename = filename .. "_" .. math.floor(step / opt.save_versions)
-        -- end
+        if opt.save_versions > 0 then
+            filename = filename .. "_" .. math.floor(step / opt.save_versions)
+        end
         filename = filename
         torch.save(filename .. ".t7", {agent = agent,
                                 model = agent.network,
