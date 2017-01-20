@@ -229,12 +229,13 @@ function nql:getQUpdate(args)
     local q2_tmp = self.network:forward(s2)
     local q2_all = target_q_net:forward(s2)
     q2_max = torch.FloatTensor(self.num_heads,num_samples)
-    local a2 = {}
+    local a2, max_val, a2_tmp
 
     for i=1,self.active:size(1) do
-        _,a2 = q2_tmp[self.active[i]]:max(2)
         for j=1,num_samples do
-        	local a2_tmp = a2[j][1]
+        	max_val = q2_tmp[self.active[i]][j]:max()
+        	a2 = q2_tmp[self.active[i]][j]:eq(max_val):nonzero()
+        	a2_tmp = a2[torch.random(a2:size(1))][1]
         	q2_max[self.active[i]][j] = q2_all[self.active[i]][j][a2_tmp]
         end
     end
@@ -427,102 +428,46 @@ function nql:greedy(state, testing)
         state = state:resize(1, state:size(1), state:size(2))
     end
 
-    local q = torch.zeros(self.n_actions):float()
-
     if self.gpu >= 0 then
         state = state:cuda()
-        q = q:cuda()
     end
-    besta = {}
+    local all_heads_out = self.network:forward(state)
+    local q, besta, maxq, a_tmp
+
     if testing then
-	   local t = self.network:forward(state)
-       if self.mode=="maxVote" then
-           for i=1,self.num_heads do
-    	       q = t[i][1]
-               local ba = { 1 }
-               local maxq = q[1]
-
-               -- Evaluate all other actions (with random tie-breaking)
-               for a = 2, self.n_actions do
-                if q[a] > maxq then
-                    ba = { a }
-                    maxq = q[a]
-                elseif q[a] == maxq then
-                    ba[#ba+1] = a
-                end
-               end
-               self.bestq = maxq
-
-               local r = torch.random(1, #ba)
-
-               besta[#besta+1] = ba[r]
-    	   end
-           _, bestar = torch.max(torch.histc(torch.Tensor(besta),self.n_actions),1)
-           best = bestar[1]
-       elseif self.mode=="average" then
-           for i=1,self.num_heads do
-                q = q + t[i][1]
-           end  
-           q:div(self.num_heads)
-           local ba = { 1 }
-           local maxq = q[1]
-
-           -- Evaluate all other actions (with random tie-breaking)
-           for a = 2, self.n_actions do
-            if q[a] > maxq then
-                ba = { a }
-                maxq = q[a]
-            elseif q[a] == maxq then
-                ba[#ba+1] = a
-            end
-           end
-           self.bestq = maxq
-           local r = torch.random(1, #ba)
-           best = ba[r]
-       elseif self.mode=="random" then
-           q = t[torch.random(self.num_heads)][1]
-           local ba = { 1 }
-           local maxq = q[1]
-
-           -- Evaluate all other actions (with random tie-breaking)
-           for a = 2, self.n_actions do
-            if q[a] > maxq then
-                ba = { a }
-                maxq = q[a]
-            elseif q[a] == maxq then
-                ba[#ba+1] = a
-            end
-           end
-           self.bestq = maxq
-           local r = torch.random(1, #ba)
-           best = ba[r]
-        end
-       -- q = t[torch.random(self.num_heads)][1]
-	   -- q:div(self.num_heads)
+    	if self.test_mode=="maxVote" then
+    		local action_votes = torch.FloatTensor(self.num_heads)
+    		for i=1,self.num_heads do
+    			maxq = all_heads_out[i][1]:max()
+    			a_tmp = all_heads_out[i][1]:eq(maxq):nonzero()
+    			action_votes[i] = a_tmp[torch.random(a_tmp:size(1))][1]
+    		end
+    		action_votes = torch.histc(action_votes,self.n_actions)
+    		local max_vote = action_votes:max()
+    		a_tmp = action_votes:eq(max_vote):nonzero()
+    		besta = a_tmp[torch.random(a_tmp:size(1))][1]
+    	elseif self.test_mode=="average" then
+    		q = torch.FloatTensor(self.n_actions):fill(0)
+    		for i=1,self.num_heads do
+    			q:add(all_heads_out[i][1])
+    		end
+    		maxq = q:max()
+    		a_tmp = q:eq(maxq):nonzero()
+    		besta = a_tmp[torch.random(a_tmp:size(1))][1]
+    	elseif self.test_mode=="random" then
+    		q = all_heads_out[torch.random(self.num_heads)][1]
+		    maxq = q:max()
+    		a_tmp = q:eq(maxq):nonzero()
+    		besta = a_tmp[torch.random(a_tmp:size(1))][1]
+		end
     else
-	   local t = self.network:forward(state)
-	   q = t[self.select_head][1]
-       local maxq = q[1]
-       local besta = {1}
+	    q = all_heads_out[self.select_head][1]
+	    maxq = q:max()
+	    a_tmp = q:eq(maxq):nonzero()
+    	besta = a_tmp[torch.random(a_tmp:size(1))][1]
+	end
 
-       -- Evaluate all other actions (with random tie-breaking)
-       for a = 2, self.n_actions do
-        if q[a] > maxq then
-            besta = { a }
-            maxq = q[a]
-        elseif q[a] == maxq then
-            besta[#besta+1] = a
-        end
-       end
-       self.bestq = maxq
-
-       local r = torch.random(1, #besta)
-       best = besta[r]
-    end
-
-    self.lastAction = best
-
-    return best
+    return besta
 end
 
 
