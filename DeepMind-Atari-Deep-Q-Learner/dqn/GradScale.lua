@@ -7,7 +7,7 @@ end
        
 function GradScale:updateOutput(input)
   self.output:resizeAs(input):copy(input)
-  return input
+  return self.output
 end
 
 function GradScale:updateGradInput(input, gradOutput)
