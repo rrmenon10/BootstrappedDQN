@@ -4,8 +4,10 @@ Copyright (c) 2014 Google Inc.
 See LICENSE file for full terms of limited license.
 ]]
 
-require 'initenv'
-require 'GradScale'
+require "initenv"
+require "nn"
+--require "Replicater"
+require "GradScale"
 
 function create_network(args)
 
@@ -39,19 +41,30 @@ function create_network(args)
 
     -- reshape all feature planes into a vector per example
     net:add(nn.Reshape(nel))
-    -- net:add(nn.GradScale(1/args.num_heads))
+    --net:add(nn.GradScale(args.num_heads))
 
-    local heads_net = nn.ConcatTable()
-    for i=1,args.num_heads do
-        local head = nn.Sequential()
-        head:add(nn.Linear(nel, args.n_hid[1]))
-        head:add(args.nl())
-        head:add(nn.Linear(args.n_hid[1],args.n_actions))
-        head:add(nn.GradScale(1/args.num_heads))
-        heads_net:add(head)
-    end
+    -- fully connected layer
+    -- net:add(nn.Linear(nel, args.n_hid[1]))
+    -- net:add(args.nl())
 
-    net:add(heads_net)
+    -- THIS PART FOR BOOTSTRAPPED DQN
+
+    	local bootstrap_headers = nn.Sequential()
+	-- bootstrap_headers:add(nn.GradScale(args.num_heads))
+    	-- bootstrap_headers:add(nn.Replicate(args.num_heads))
+    	-- bootstrap_headers:add(nn.SplitTable(1))
+	-- bootstrap_headers:add(nn.GradScale(args.num_heads))
+    		local bootstrap_headsubset = nn.ConcatTable()
+    		for i=1,args.num_heads do
+	   		head = nn.Sequential()
+	   		head:add(nn.GradScale(args.num_heads))
+			head:add(nn.Linear(nel, args.n_hid[1]))
+	   		head:add(args.nl())
+	   		head:add(nn.Linear(args.n_hid[1],args.n_actions))
+	   		bootstrap_headsubset:add(head)
+    		end
+    		bootstrap_headers:add(bootstrap_headsubset)
+    	net:add(bootstrap_headers)	
 
     if args.gpu >=0 then
         net:cuda()
