@@ -1,4 +1,4 @@
-# Bootstapped DQN
+# Bootstrapped DQN
 
 This repository maintains the code for Bootstrapped DQN (Osband 2016).
 
