@@ -6,8 +6,7 @@ See LICENSE file for full terms of limited license.
 
 require "initenv"
 require "nn"
---require "GradScale"
-require "Bootstrap"
+require "GradScale"
 
 function create_network(args)
 
@@ -41,44 +40,23 @@ function create_network(args)
 
     -- reshape all feature planes into a vector per example
     net:add(nn.Reshape(nel))
-
-    -- THIS PART FOR NORMAL DQN 
-
+    net:add(nn.GradScale(2))
 
     -- fully connected layer
-    net:add(nn.Linear(nel, args.n_hid[1]))
+    -- net:add(nn.Linear(nel, args.n_hid[1]))
     -- net:add(args.nl())
-    -- local last_layer_size = args.n_hid[1]
 
-    -- for i=1,(#args.n_hid-1) do
-    --     add Linear layer
-    --     last_layer_size = args.n_hid[i+1]
-    --     net:add(nn.Linear(args.n_hid[i], last_layer_size))
-    --     net:add(args.nl())
-    -- end
+    -- THIS PART FOR BOOTSTRAPPED DQN
 
-    -- add the last fully connected layer (to actions)
-    -- net:add(nn.Linear(last_layer_size, args.n_actions))
-
-    -- THIS PART FOR BOOTSTRAP DQN
-
-    -- net:add(nn.Bootstrap(nn.Linear(nel,args.n_actions),10,0.08))
-
-    -- THIS PART FOR SOFT ATTENTION
-    heads = nn.Concat(2)
-    --heads:add(nn.GradScale(0.1))
-    for i=1,args.num_heads do
-        mlp = nn.Sequential()
-        mlp:add(nn.Linear(args.n_hid[1],args.n_actions))
-        -- mlp:add(args.nl())
-        -- for j=1,(#args.n_hid-1) do
-        --     mlp:add(nn.Linear(args.n_hid[i], args.n_hid[i+1]))
-        --     mlp:add(args.nl())
-        -- end
-        -- mlp:add(nn.Linear(last_layer_size, args.n_actions))
-        heads:add(mlp)
-    end
-    net:add(heads)
+    	local bootstrap_headsubset = nn.ConcatTable()
+    		for i=1,2 do
+	   		head = nn.Sequential()
+	   		head:add(nn.Linear(nel, args.n_hid[1]))
+	   		head:add(args.nl())
+	   		head:add(nn.Linear(args.n_hid[1],args.n_actions))
+	   		bootstrap_headsubset:add(head)
+    		end
+        net:add(bootstrap_headsubset)	
 
     if args.gpu >=0 then
         net:cuda()

@@ -4,7 +4,7 @@ Copyright (c) 2014 Google Inc.
 See LICENSE file for full terms of limited license.
 ]]
 
-require 'convnet'
+require 'convnet_bootstrap'
 
 return function(args)
     args.n_units        = {32, 64, 64}
@@ -15,4 +15,3 @@ return function(args)
 
     return create_network(args)
 end
-

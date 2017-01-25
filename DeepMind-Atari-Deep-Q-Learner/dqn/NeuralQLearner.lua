@@ -17,8 +17,6 @@ function nql:__init(args)
     self.n_actions  = #self.actions
     self.verbose    = args.verbose
     self.best       = args.best
-    self.num_heads  = args.num_heads
-    self.mode 	    = args.mode
 
     --- epsilon annealing
     self.ep_start   = args.ep or 1
@@ -48,7 +46,7 @@ function nql:__init(args)
     self.rescale_r      = args.rescale_r
     self.max_reward     = args.max_reward
     self.min_reward     = args.min_reward
-    self.clip_delta     = 1--args.clip_delta
+    self.clip_delta     = args.clip_delta
     self.target_q       = args.target_q
     self.bestq          = 0
 
@@ -150,8 +148,6 @@ function nql:__init(args)
     self.g  = self.dw:clone():fill(0)
     self.g2 = self.dw:clone():fill(0)
 
-    self.select_head = torch.random(self.num_heads)
-
     if self.target_q then
         self.target_network = self.network:clone()
     end
@@ -190,27 +186,13 @@ function nql:getQUpdate(args)
     r = args.r
     s2 = args.s2
     term = args.term
-    
+
     -- The order of calls to forward is a bit odd in order
     -- to avoid unnecessary calls (we only need 2).
 
     -- delta = r + (1-terminal) * gamma * max_a Q(s2, a) - Q(s, a)
     term = term:clone():float():mul(-1):add(1)
-    
-    mask = self.num_heads -- This portion can be changed to have the masking
-    -- Find a way for GradScale also in that case (Even without changing it will work)
-    self.active = {}
-    for i=1,mask do
-    	if mask < self.num_heads then
-        	self.active[i] = torch.random(self.num_heads)
-        else
-        	self.active[i] = i
-        end
-    end
-    
-    self.network:get(11):get(1):set_scale(#self.active)
 
-    -- term = torch.repeatTensor(term, 1, #self.active):float()
     local target_q_net
     if self.target_q then
         target_q_net = self.target_network
@@ -218,41 +200,39 @@ function nql:getQUpdate(args)
         target_q_net = self.network
     end
 
-    delta = r:clone():float()
-
     -- Compute max_a Q(s_2, a).
-    -- q2_max = target_q_net:forward(s2):float():max(2)
+    q2_max = {}
+    local q2_tmp = target_q_net:forward(s2)
+    for i=1,2 do
+      q2_max[i] = (q2_tmp[i]):float():max(2)
+    end
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
-    -- q2 = q2_max:clone():mul(self.discount):cmul(term)
-    q2_tmp = target_q_net:forward(s2)
-    q2_max = torch.Tensor(delta:size(1)):fill(0)
     q2 = {}
-    for i=1,#self.active do
-      local t = q2_tmp[self.active[i]]:float():max(2):div(self.num_heads)
-    	q2_max = q2_max + (t:transpose(1,2))[1]
-      q2[i] = q2_tmp[self.active[i]]:float():max(2):clone():mul(self.discount):cmul(term) -- The whole thing behind term looks like its not needed now. Maybe it should be left just as it was before.
+    for i=1,2 do
+      q2[i] = (q2_max[i]):clone():mul(self.discount):cmul(term)
     end
+
+    delta = r:clone():float()
+    delta = torch.repeatTensor(delta,2,1):float()
+    delta = delta:transpose(1,2)
 
     if self.rescale_r then
         delta:div(self.r_max)
     end
-    delta = torch.repeatTensor(delta,#self.active,1):float()
-    delta = delta:transpose(1,2)
-    for i=1,#self.active do
+    for i=1,2 do
     	delta[{{},{i}}] = delta[{{},{i}}] + q2[i]
     end
 
     -- q = Q(s,a)
-    local q_all = self.network:forward(s)
-    q = torch.FloatTensor(delta:size(1), #self.active):fill(0)
-    for i=1,delta:size(1) do
-        for j=1,#self.active do
-		      local t = q_all[self.active[j]]:float()
-		      q[i][j] = t[i][a[i]]
-	      end
+    local q_all_tmp = self.network:forward(s)
+    local q_all = (q_all_tmp[1]):float()
+    q = torch.FloatTensor(q_all:size(1), 2)
+    for i=1,q_all:size(1) do
+        for j=1,2 do
+          q[i][j] = ((q_all_tmp[j]):float())[i][a[i]]
+        end
     end
-
     delta:add(-1, q)
 
     if self.clip_delta then
@@ -260,11 +240,11 @@ function nql:getQUpdate(args)
         delta[delta:le(-self.clip_delta)] = -self.clip_delta
     end
 
-    local targets = torch.zeros(self.num_heads, delta:size(1), self.n_actions):float()
+    local targets = torch.zeros(2, self.minibatch_size, self.n_actions):float()
     for i=1,math.min(self.minibatch_size,a:size(1)) do
-	   for j=1,#self.active do
-        	targets[self.active[j]][i][a[i]] = delta[i][j]
-	   end
+        for j = 1,2 do
+          targets[j][i][a[i]] = delta[i][j]
+        end
     end
 
     if self.gpu >= 0 then targets = targets:cuda() end
@@ -311,6 +291,9 @@ function nql:qLearnMinibatch()
     -- accumulate update
     self.deltas:mul(0):addcdiv(self.lr, self.dw, self.tmp)
     self.w:add(self.deltas)
+  
+    -- selecting head
+    self.select_head = torch.random(2)
 end
 
 
@@ -328,7 +311,7 @@ function nql:compute_validation_statistics()
     local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
         a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term}
 
-    self.v_avg = self.q_max * q2_max:mean()
+    self.v_avg = self.q_max * (q2_max[1]):mean()
     self.tderr_avg = delta:clone():abs():mean()
 end
 
@@ -337,10 +320,6 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Preprocess state (will be set to nil if terminal)
     local state = self:preprocess(rawstate):float()
     local curState
-
-    if reward then
-        print(reward)
-    end
 
     if self.max_reward then
         reward = math.min(reward, self.max_reward)
@@ -372,11 +351,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     -- Select action
     local actionIndex = 1
     if not terminal then
-    	if self.numSteps > self.learn_start then
-    		actionIndex = self:greedy(curState, testing, self.select_head)
-    	else
-    		actionIndex = self:eGreedy(curState, testing, 1, self.select_head)
-        end
+        actionIndex = self:eGreedy(curState, testing, testing_ep)
     end
 
     self.transitions:add_recent_action(actionIndex)
@@ -404,173 +379,64 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     if not terminal then
         return actionIndex
     else
-	-- To make Thompson DQN, just put the statement below above the if condition and let the self.select_head get updated at every step
-	self.select_head = torch.random(self.num_heads)
+        self.select_head = torch.random(2)
         return 0
     end
 end
 
 
-function nql:eGreedy(state, testing, testing_ep, select_head)
-    self.ep = testing_ep --or (self.ep_end +
-                --math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
-                --math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
+function nql:eGreedy(state, testing, testing_ep)
+    self.ep = testing_ep or (self.ep_end +
+                math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
+                math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
     -- Epsilon greedy
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)
     else
-        return self:greedy(state, testing, select_head)
+        return self:greedy(state, testing)
     end
 end
 
 
-function nql:greedy(state, testing, select_head)
+function nql:greedy(state, testing)
     -- Turn single state into minibatch.  Needed for convolutional nets.
     if state:dim() == 2 then
         assert(false, 'Input must be at least 3D')
         state = state:resize(1, state:size(1), state:size(2))
     end
 
-    -- local q = torch.zeros(self.n_actions):float()
-
-    -- if self.gpu >= 0 then
-    --     state = state:cuda()
-    --     q = q:cuda()
-    -- end
-    local q = torch.zeros(self.n_actions):float()
-
     if self.gpu >= 0 then
         state = state:cuda()
-        q = q:cuda()
     end
-    besta = {}
+    
+    local select_head = 0
     if testing then
-<<<<<<< HEAD
-           if self.mode == "mean" then
-	   	local t = self.network:forward(state)
-     		for i=1,self.num_heads do
-	       		q = q + t[i][1]
-	   	end
-	   	q:div(self.num_heads)
-		local maxq = q[1]
-		local besta = {1}
-		for a = 2, self.n_actions do
-			if q[a] > maxq then
-				besta = { a }
-				maxq = q[a]
-			elseif q[a] == maxq then
-				besta[#besta+1] = a
-			end
-		self.bestq = maxq
-		local r = torch.random(1, #besta)
-		best = besta[r]
-           else if self.mode == "maxVote" then
-		local t = self.network:forward(state)
-		for i=1,self.num_heads do
-			q = t[i][1]
-			local maxq = q[1]
-			local besta = {1}
-			for a = 2, self.n_actions do
-				if q[a] > maxq then
-					besta = { a }
-					maxq = q[a]
-				elseif q[a] == maxq then
-					besta[#besta+1] = a
-				end
-			self.bestq = maxq
-			local r = torch.random(1, #besta)
-			_, bestar = torch.max(torch.histc(torch.Tensor(besta),self.n_actions),1)
-			best = bestar[1]
-	   else if self.mode == "random" then
-		local t = self.network:forward(state)
-		q = t[torch.random(self.num_heads)][1]
-		local maxq = q[1]
-		local besta = {1}
-		for a = 2, self.n_actions do
-			if q[a] > maxq then
-				besta = { a }
-				maxq = q[a]
-			elseif q[a] == maxq then
-				besta[#besta+1] = a
-			end
-		self.bestq = maxq
-		local r = torch.random(1, #besta)
-		best = besta[r]
-	   end
+       select_head = torch.random(2)
     else
-	   local t = self.network:forward(state)
-	   q = t[select_head][1]
-           local maxq = q[1]
-           local besta = {1}
+       select_head = self.select_head
+    end
 
-           -- Evaluate all other actions (with random tie-breaking)
-           for a = 2, self.n_actions do
-           	if q[a] > maxq then
-                	besta = { a }
-            		maxq = q[a]
-        	elseif q[a] == maxq then
-            		besta[#besta+1] = a
-           	end
-    	   end
-    	   self.bestq = maxq
+    local q_tmp = self.network:forward(state)
+    local q = (q_tmp[select_head]):float():squeeze()
+    local maxq = q[1]
+    local besta = {1}
 
-    	   local r = torch.random(1, #besta)
-	   best = besta[r]
-=======
-	   local t = self.network:forward(state)
-       for i=1,self.num_heads do
-	       q = t[i][1]
-           local ba = { 1 }
-           local maxq = q[1]
-
-           -- Evaluate all other actions (with random tie-breaking)
-           for a = 2, self.n_actions do
-            if q[a] > maxq then
-                ba = { a }
-                maxq = q[a]
-            elseif q[a] == maxq then
-                ba[#ba+1] = a
-            end
-           end
-           self.bestq = maxq
-
-           local r = torch.random(1, #ba)
-
-           besta[#besta+1] = ba[r]
-	   end
-       _, bestar = torch.max(torch.histc(torch.Tensor(besta),self.n_actions),1)
-       best = bestar[1]
-       -- q = t[torch.random(self.num_heads)][1]
-	   -- q:div(self.num_heads)
-    else
-	   local t = self.network:forward(state)
-	   q = t[select_head][1]
-       local maxq = q[1]
-       local besta = {1}
-
-       -- Evaluate all other actions (with random tie-breaking)
-       for a = 2, self.n_actions do
+    -- Evaluate all other actions (with random tie-breaking)
+    for a = 2, self.n_actions do
         if q[a] > maxq then
             besta = { a }
             maxq = q[a]
         elseif q[a] == maxq then
             besta[#besta+1] = a
         end
-       end
-       self.bestq = maxq
-
-       local r = torch.random(1, #besta)
-       best = besta[r]
->>>>>>> 8c055b999dff1135562cd52dd35554bed2ac3c93
     end
+    self.bestq = maxq
 
-    self.lastAction = best
+    local r = torch.random(1, #besta)
 
-<<<<<<< HEAD
-    return besta
-=======
-    return best
->>>>>>> 8c055b999dff1135562cd52dd35554bed2ac3c93
+    self.lastAction = besta[r]
+
+    return besta[r]
 end
 
 
