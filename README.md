@@ -9,4 +9,4 @@ Experiments are being run to check the best suited version and the plots will be
 
 ### Breakout 2 Heads
 
-![Average_reward.pdf](https://github.com/rockermaxx/BootstrappedDQN/files/730188/Average_reward.pdf)
+![average_reward](https://cloud.githubusercontent.com/assets/8466046/22298128/67413282-e345-11e6-9de5-2f29072e8085.png)
