@@ -9,4 +9,4 @@ Experiments are being run to check the best suited version and the plots will be
 
 ### Breakout 2 Heads
 
-![alt tag](/DeepMind-Atari-Deep-Q-Learner/dqn/Average_reward.pdf?raw=true "Optional Title")
+[Average_reward.pdf](https://github.com/rockermaxx/BootstrappedDQN/files/730188/Average_reward.pdf)
