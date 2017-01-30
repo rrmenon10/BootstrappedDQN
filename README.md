@@ -13,4 +13,4 @@ Experiments are being run to check the best suited version and the plots will be
 
 ### Breakout 10 heads (with and w/o gradient normalization)
 
-![Average_reward.pdf](https://github.com/rockermaxx/BootstrappedDQN/files/739814/Average_reward.pdf)
+![average_reward](https://cloud.githubusercontent.com/assets/8466046/22435011/60353422-e744-11e6-87a7-dc08ad2142a2.png)
