@@ -67,6 +67,7 @@ function create_network(args)
                     attention:add(nn.GradScale(0.0))
                     attention:add(nn.Linear(nel, args.n_hid[1]))
                     attention:add(nn.Linear(args.n_hid[1], args.num_heads))
+                    attention:add(nn.SoftMax())
                 split_net:add(attention)
 
             fork_net:add(split_net)
