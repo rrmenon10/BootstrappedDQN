@@ -6,7 +6,7 @@ See LICENSE file for full terms of limited license.
 
 require "initenv"
 require "nn"
-require "Replicater"
+require "GradScale"
 
 function create_network(args)
 
@@ -40,6 +40,7 @@ function create_network(args)
 
     -- reshape all feature planes into a vector per example
     net:add(nn.Reshape(nel))
+    net:add(nn.GradScale(10))
 
     -- fully connected layer
     -- net:add(nn.Linear(nel, args.n_hid[1]))
@@ -47,19 +48,15 @@ function create_network(args)
 
     -- THIS PART FOR BOOTSTRAPPED DQN
 
-    	local bootstrap_headers = nn.Sequential()
-    	bootstrap_headers:add(nn.Replicater(args.num_heads, args.num_heads))
-    	bootstrap_headers:add(nn.SplitTable(1))
-    		local bootstrap_headsubset = nn.ParallelTable()
-    		for i=1,args.num_heads do
+    	local bootstrap_headsubset = nn.ConcatTable()
+    		for i=1,10 do
 	   		head = nn.Sequential()
 	   		head:add(nn.Linear(nel, args.n_hid[1]))
 	   		head:add(args.nl())
 	   		head:add(nn.Linear(args.n_hid[1],args.n_actions))
 	   		bootstrap_headsubset:add(head)
     		end
-    		bootstrap_headers:add(bootstrap_headsubset)
-    	net:add(bootstrap_headers)	
+        net:add(bootstrap_headsubset)	
 
     if args.gpu >=0 then
         net:cuda()
