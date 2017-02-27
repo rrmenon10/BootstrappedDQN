@@ -208,7 +208,11 @@ function nql:getQUpdate(args)
     local grad_mask = torch.rand(10)
     local tmp = self.network:forward(s2)
     for i=1,10 do
+<<<<<<< HEAD
+        local target_head = i
+=======
         local target_head = self.active[i]
+>>>>>>> 624c8f160d4fa120de613f0b057b29964026198e
         if grad_mask[i]>0.5 then
             target_head = self.best_head
         end
@@ -218,7 +222,11 @@ function nql:getQUpdate(args)
     q2 = {}
     for i=1,10 do
       local t = q2_tmp[i]:float()
+<<<<<<< HEAD
+      q2_max = torch.Tensor(r:size(1)):fill(0)
+=======
       q2_max = torch.Tensor(delta:size(1)):fill(0)
+>>>>>>> 624c8f160d4fa120de613f0b057b29964026198e
       for j=1,t:size(1) do
         q2_max[j] = q2_max[j] + t[{{j},{a_tmp[i][j][1]}}][1]
       end
@@ -305,7 +313,11 @@ function nql:qLearnMinibatch()
     self.w:add(self.deltas)
   
     -- selecting head
+<<<<<<< HEAD
+    -- self.select_head = torch.random(10)
+=======
     self.select_head = torch.random(10)
+>>>>>>> 624c8f160d4fa120de613f0b057b29964026198e
 end
 
 
@@ -322,8 +334,13 @@ end
 function nql:compute_validation_statistics()
     local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
         a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term}
+<<<<<<< HEAD
+    
+    self.v_avg = self.q_max * (q2_max):mean()
+=======
 
     self.v_avg = self.q_max * (q2_max[1]):mean()
+>>>>>>> 624c8f160d4fa120de613f0b057b29964026198e
     self.tderr_avg = delta:clone():abs():mean()
 end
 
@@ -427,6 +444,7 @@ function nql:greedy(state, testing)
     else
        select_head = self.select_head
     end
+<<<<<<< HEAD
 
     local q_tmp = self.network:forward(state)
 
@@ -443,6 +461,24 @@ function nql:greedy(state, testing)
     local maxq = q[1]
     local besta = {1}
 
+=======
+
+    local q_tmp = self.network:forward(state)
+
+    if self.numSteps % 100 == 0 then
+        local temp = torch.Tensor(10):fill(0)
+        for i=1,10 do
+            temp[i] = torch.max(q_tmp[i][1])
+        end
+        _, temp_head = torch.max(temp,1)
+        self.best_head = temp_head[1]
+    end
+
+    local q = (q_tmp[select_head]):float():squeeze()
+    local maxq = q[1]
+    local besta = {1}
+
+>>>>>>> 624c8f160d4fa120de613f0b057b29964026198e
     -- Evaluate all other actions (with random tie-breaking)
     for a = 2, self.n_actions do
         if q[a] > maxq then
